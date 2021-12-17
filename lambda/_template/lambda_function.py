@@ -1,4 +1,4 @@
-from common import *
+from common.cibic_common import *
 
 def lambda_handler(event, context):
     try:
