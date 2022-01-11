@@ -10,6 +10,19 @@ import statistics
 import time
 
 ################################################################################
+# All AWS resource names
+################################################################################
+class CibicResources():
+    class DynamoDB():
+        EndpointRequests = 'cibic21-dynamodb-api-endpoint-requests'
+
+    # class S3Bucket():
+        # SurveyMedia = # TBD
+
+    # class Sns():
+        # EndpointRequestProcessed = # TBD
+
+################################################################################
 # GENERAL HELPERS
 ################################################################################
 def reportError():
