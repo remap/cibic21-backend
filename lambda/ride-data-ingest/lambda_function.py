@@ -1,5 +1,6 @@
 import boto3
 import os
+import uuid
 from common.cibic_common import *
 from datetime import datetime
 
@@ -13,11 +14,13 @@ dynamoDbResource = boto3.resource('dynamodb')
 def lambda_handler(event, context):
     requestsTable = dynamoDbResource.Table(CibicResources.DynamoDB.EndpointRequests)
     requestTimestamp = datetime.now().astimezone().strftime("%m/%d/%Y %H:%M:%S.%f UTC%z")
+    requestId = str(uuid.uuid4()) # generate request uuid
     requestProcessed = False
     requestBody = ''
 
     try:
         print (event)
+        stage = event['requestContext']['stage']
         requestBody = json.loads(event['body'])
         print(requestBody)
 
@@ -26,12 +29,23 @@ def lambda_handler(event, context):
         #   Message="New ride.", Subject="CiBiC notification")
     except:
         err = reportError()
-        requestsTable.put_item(Item = { 'timestamp' : requestTimestamp,'body' : json.dumps(requestBody), 'processed' : False, 'error' : str(err)})
+        requestsTable.put_item(Item = {
+            'timestamp' : requestTimestamp,
+            'requestId': requestId,
+            'body' : json.dumps(requestBody),
+            'processed' : False,
+            'error' : str(err)
+        })
 
         print('caught exception:', sys.exc_info()[0])
         return lambdaReply(420, str(err))
 
     # store request data in DynamoDB table
-    requestsTable.put_item(Item = { 'timestamp' : requestTimestamp, 'body' : json.dumps(requestBody), 'processed' : requestProcessed })
+    requestsTable.put_item(Item = {
+        'timestamp' : requestTimestamp,
+        'requestId':requestId,
+        'body' : json.dumps(requestBody),
+        'processed' : requestProcessed
+    })
 
     return processedReply()
