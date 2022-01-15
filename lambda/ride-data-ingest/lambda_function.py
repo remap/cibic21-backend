@@ -24,10 +24,10 @@ def lambda_handler(event, context):
     err = ''
 
     try:
-        print (event)
+        print ('event data ' + str(event))
         stage = event['requestContext']['stage']
         requestBody = json.loads(event['body'])
-        print(requestBody)
+        print('body data ' + str(requestBody))
 
         # here's what we need to do with incoming data:
         # - make sure it's valid, i.e. has required fields (TODO: this should be probably done at the API endpoint using data models)
