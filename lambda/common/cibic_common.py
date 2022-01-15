@@ -8,6 +8,7 @@ from datetime import datetime
 import urllib.request, mimetypes
 import statistics
 import time
+import math
 
 ################################################################################
 # All AWS resource names
@@ -59,3 +60,17 @@ def malformedMessageReply():
 
 def processedReply():
     return lambdaReply(200, 'Message processed')
+
+################################################################################
+# GEO MATH HELPERS
+################################################################################
+# https://en.wikipedia.org/wiki/Haversine_formula
+def getGreatCircleDistance(lat1, lon1, lat2, lon2):
+    R = 6378.137 # earth radius in km
+    lat1 = math.radians(lat1)
+    lat2 = math.radians(lat2)
+    lon1 = math.radians(lon1)
+    lon2 = math.radians(lon2)
+    dLon = abs(lon1-lon2)
+    dA = math.acos(math.sin(lat1)*math.sin(lat2) + math.cos(lat1)*math.cos(lat2)*math.cos(dLon))
+    return dA * R * 1000 # convert to meters
