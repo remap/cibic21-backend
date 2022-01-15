@@ -14,7 +14,7 @@ if [ -f "requirements.txt" ]
 then
     # package lambda with dependencies
     docker run --rm -v `pwd`:/lambda peetonn/fssi2019-lambda-packager:latest
-    zip -g function.zip * -x "*.pyc" -x "*.txt"
+    zip -g -X -r function.zip * -x "*.pyc" -x "*.txt"
 else
     zip -X -r function.zip * -x "*.pyc"
 fi
