@@ -42,7 +42,7 @@ def lambda_handler(event, context):
                 cur = conn.cursor()
                 cur.execute('SELECT version()')
                 db_version = cur.fetchone()
-                print('postgres version ' + db_version)
+                print('postgres version ' + str(db_version))
                 cur.close()
 
                 # obfuscate route around start and end
