@@ -92,7 +92,7 @@ def splitWaypoints(radius, waypoints):
         return (startCircleWps, endCircleWps, otherWps)
 
 def generateAreaGeometry(waypoints):
-
+    pass
 
 def insertRawWaypoints(rideId, waypoints):
     pass
