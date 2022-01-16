@@ -3,7 +3,7 @@ import os
 import psycopg2
 from psycopg2 import extras # for fast batch insert, see https://www.psycopg.org/docs/extras.html#fast-exec
 
-obfuscateRadius = float(os.environ['ENV_VAR_OBFUSCATE_RADIUS']) if 'ENV_VAR_OBFUSCATE_RADIUS' in os.environ else 2000
+obfuscateRadius = float(os.environ['ENV_VAR_OBFUSCATE_RADIUS']) if 'ENV_VAR_OBFUSCATE_RADIUS' in os.environ else 100
 pgDbName = os.environ['ENV_VAR_POSTGRES_DB']
 pgUsername = os.environ['ENV_VAR_POSTGRES_USER']
 pgPassword = os.environ['ENV_VAR_POSTGRES_PASSWORD']
@@ -30,30 +30,21 @@ def lambda_handler(event, context):
 
                 # split waypoints into three zones
                 startZone, endZone, routeWaypoints = splitWaypoints(obfuscateRadius, waypoints)
-                # generate start / end geometry
-                # startArea = generateAreaGeometry(startZone)
-                # endArea = generateAreaGeometry(endZone)
 
+                # insert data into postgres
                 conn = psycopg2.connect(host=pgServer, database=pgDbName,
-                    user=pgUsername, password=pgPassword)
+                                        user=pgUsername, password=pgPassword)
                 cur = conn.cursor()
-                cur.execute('SELECT version()')
-                db_version = cur.fetchone()
-                print('postgres version ' + str(db_version))
 
                 # insert new ride
-                sqlInsertRide = 'INSERT INTO cibic21_rides("rideId") VALUES(%s)'
-                cur.execute(sqlInsertRide, (rideId,))
-
+                insertRide(cur, rideId, startZone, endZone)
                 # insert raw waypoints
                 insertRawWaypoints(cur, rideId, routeWaypoints)
+
                 conn.commit()
-
-                print(cur.statusmessage)
-                # obfuscate route around start and end
-
                 cur.close()
 
+                # notify waypoints added
             else:
                 return malformedMessageReply()
         else:
@@ -146,12 +137,47 @@ def splitWaypoints(radius, waypoints):
         print('split waypoints: start group {}, end group {}, route {}'
                 .format(len(startCircleWps), len(endCircleWps), len(otherWps)))
         return (startCircleWps, endCircleWps, otherWps)
+    return ([],[],[])
 
-def generateAreaGeometry(waypoints):
-    pass
+def insertRide(cur, rideId, startZone, endZone):
+    # generate start / end geometry
+    cLat1, cLon1, rad1 = obfuscateWaypoints(startZone)
+    cLat2, cLon2, rad2 = obfuscateWaypoints(endZone)
+    # sqlInsertRide = 'INSERT INTO cibic21_rides("rideId") VALUES(%s)'
+    sqlInsertRide = """
+                    INSERT INTO cibic21_rides("rideId", "startZone", "endZone")
+                    VALUES (%s,
+                            ST_Buffer(ST_GeomFromText('{}',4326)::geography,
+                                        {},'quad_segs=16')::geometry,
+                            ST_Buffer(ST_GeomFromText('{}',4326)::geography,
+                                        {},'quad_segs=16')::geometry
+                    )
+                    """.format(wktPoint(cLat1, cLon2), rad1, wktPoint(cLat2, cLon2), rad2)
+    cur.execute(sqlInsertRide, (rideId,))
 
-def makeSqlPoint(lat, lon):
-    return str(lon) + ', ' + str(lat)
+def obfuscateWaypoints(waypoints):
+    centerLat = 0
+    centerLon = 0
+    # find "center of mass" of all waypoints
+    # TODO: what if center is too close to the waypoint we want to obfuscate
+    # (i.e. len(waypoints) == 1)
+    for wp in waypoints:
+        centerLat += wp["latitude"]
+        centerLon += wp["longitude"]
+    centerLat /= len(waypoints)
+    centerLon /= len(waypoints)
+    # find min radius to cover all waypoints
+    minRadius = 0
+    for wp in waypoints:
+        d = getGreatCircleDistance(wp["latitude"], wp["longitude"], centerLat, centerLon)
+        if minRadius < d:
+            minRadius = d
+    print('zone center at ({},{}) with radius {}'
+            .format(centerLat, centerLon, minRadius))
+    return (centerLat, centerLon, minRadius)
+
+def wktPoint(lat, lon):
+    return 'POINT({} {})'.format(lon, lat)
 
 def insertRawWaypoints(cur, rideId, waypoints):
     sql = """
@@ -164,3 +190,6 @@ def insertRawWaypoints(cur, rideId, waypoints):
     # print(values)
     extras.execute_values(cur, sql, values)
     print('sql query execute result: ' + str(cur.statusmessage))
+
+def makeSqlPoint(lat, lon):
+    return str(lon) + ', ' + str(lat)
