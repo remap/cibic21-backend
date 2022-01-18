@@ -3,11 +3,17 @@ import os
 import psycopg2
 from psycopg2 import extras # for fast batch insert, see https://www.psycopg.org/docs/extras.html#fast-exec
 
+snsClient = boto3.client('sns')
+
 obfuscateRadius = float(os.environ['ENV_VAR_OBFUSCATE_RADIUS']) if 'ENV_VAR_OBFUSCATE_RADIUS' in os.environ else 100
 pgDbName = os.environ['ENV_VAR_POSTGRES_DB']
 pgUsername = os.environ['ENV_VAR_POSTGRES_USER']
 pgPassword = os.environ['ENV_VAR_POSTGRES_PASSWORD']
 pgServer = os.environ['ENV_VAR_PPOSTGRES_SERVER']
+routesTable = os.environ['ENV_VAR_POSTGRES_TABLE_ROUTES']
+waypointsTable = os.environ['ENV_VAR_POSTGRES_TABLE_WPS']
+statsReadyTopic = os.environ['ENV_SNS_DERIVED_DATA_READY']
+waypointsReadyTopic = os.environ['ENV_SNS_WAYPOINTS_READY']
 
 # process waypoints data
 # expected payload:
@@ -27,9 +33,15 @@ def lambda_handler(event, context):
 
                 # calculate route derived data
                 derivedData = processWaypoints(waypoints)
+                # notify new derived data available
+                # response = snsClient.publish(TopicArn=statsReadyTopic,
+                #                             Message=json.dumps({'id':rideId, 'derivedData': derivedData }),
+                #                             Subject='derived data ready',
+                #                             )['MessageId']
+                # print('sent derived data ready notification: {}'.format(response))
 
                 # split waypoints into three zones
-                startZone, endZone, routeWaypoints = splitWaypoints(obfuscateRadius, waypoints)
+                startZone, endZone, mainZone = splitWaypoints(obfuscateRadius, waypoints)
 
                 # insert data into postgres
                 conn = psycopg2.connect(host=pgServer, database=pgDbName,
@@ -39,12 +51,17 @@ def lambda_handler(event, context):
                 # insert new ride
                 insertRide(cur, rideId, startZone, endZone)
                 # insert raw waypoints
-                insertRawWaypoints(cur, rideId, routeWaypoints)
+                insertRawWaypoints(cur, rideId, waypoints)
 
                 conn.commit()
                 cur.close()
 
                 # notify waypoints added
+                # response = snsClient.publish(TopicArn=statsReadyTopic,
+                #                             Message=json.dumps({'id':rideId}),
+                #                             Subject='waypoints ready',
+                #                             )['MessageId']
+                # print('sent waypoints ready notification: {}'.format(response))
             else:
                 return malformedMessageReply()
         else:
@@ -76,14 +93,15 @@ def validateWaypoints(waypoints):
 
 def processWaypoints(waypoints):
     # calculate whole route statistics
-    stats = getRouteStats(waypoints)
+    stats = [{ 'total': getRouteStats(waypoints) }]
 
     # calculate statistics per road type (for example)
-    stats['roadTypes'] = {}
+    # stats['roadTypes'] = {}
     roadTypes = set(map(lambda x: x['road_type'], waypoints))
     routeSegments=[[wp for wp in waypoints if wp['road_type'] == rt] for rt in roadTypes]
     for idx,rt in enumerate(roadTypes):
-        stats['roadTypes'][rt] = getRouteStats(routeSegments[idx])
+        stats.append({ rt :  getRouteStats(routeSegments[idx]) })
+        # stats['roadTypes'][rt] = getRouteStats(routeSegments[idx])
 
     print('calculated route statistics {}'.format(stats))
     return stats
@@ -107,18 +125,17 @@ def getRouteStats(waypoints):
     avgSpeed /= len(waypoints)
     return { 'totalDist' : totalDist, 'avgSpeed' : avgSpeed }
 
-# removes waypoints that fall within given radius from start and end waypoint
-# returns three arrays:
-#    1) waypoints that fall into start circle
-#    2) waypoints that fall into end circle
-#    3) all other waypoints
+# splits waypoints into three groups:
+#    1) start zone: waypoints that fall within given radius of the first waypoint
+#    2) end zone:  waypoints that fall within given radius of the last waypoint
+#    3) main zone: all other waypoints
 def splitWaypoints(radius, waypoints):
     if len(waypoints):
         startWp = waypoints[0]
         endWp = waypoints[-1]
-        startCircleWps = [startWp]
-        endCircleWps = [endWp]
-        otherWps = []
+        startZone = [startWp]
+        endZone = [endWp]
+        mainZone = []
         wpIdx = 0
         for wp in waypoints:
             wp['originalIdx'] = wpIdx
@@ -128,31 +145,35 @@ def splitWaypoints(radius, waypoints):
                         wp['latitude'], wp['longitude'])
             if dStart <= radius or dEnd <= radius:
                 if dStart <= radius:
-                    startCircleWps.append(wp)
+                    wp['zone'] = 'start'
+                    startZone.append(wp)
                 if dEnd <= radius:
-                    endCircleWps.append(wp)
+                    wp['zone'] = 'end'
+                    endZone.append(wp)
             else:
-                otherWps.append(wp)
+                wp['zone'] = 'main'
+                mainZone.append(wp)
             wpIdx += 1
-        print('split waypoints: start group {}, end group {}, route {}'
-                .format(len(startCircleWps), len(endCircleWps), len(otherWps)))
-        return (startCircleWps, endCircleWps, otherWps)
+        print('split waypoints: start {}, end {}, main {}'
+                .format(len(startZone), len(endZone), len(mainZone)))
+        return (startZone, endZone, mainZone)
     return ([],[],[])
 
 def insertRide(cur, rideId, startZone, endZone):
     # generate start / end geometry
     cLat1, cLon1, rad1 = obfuscateWaypoints(startZone)
     cLat2, cLon2, rad2 = obfuscateWaypoints(endZone)
-    # sqlInsertRide = 'INSERT INTO cibic21_rides("rideId") VALUES(%s)'
     sqlInsertRide = """
-                    INSERT INTO cibic21_rides("rideId", "startZone", "endZone")
+                    INSERT INTO {}("rideId", "startZone", "endZone")
                     VALUES (%s,
                             ST_Buffer(ST_GeomFromText('{}',4326)::geography,
                                         {},'quad_segs=16')::geometry,
                             ST_Buffer(ST_GeomFromText('{}',4326)::geography,
                                         {},'quad_segs=16')::geometry
                     )
-                    """.format(wktPoint(cLat1, cLon2), rad1, wktPoint(cLat2, cLon2), rad2)
+                    """.format(routesTable,
+                                wktPoint(cLat1, cLon2), rad1,
+                                wktPoint(cLat2, cLon2), rad2)
     cur.execute(sqlInsertRide, (rideId,))
 
 def obfuscateWaypoints(waypoints):
@@ -181,13 +202,12 @@ def wktPoint(lat, lon):
 
 def insertRawWaypoints(cur, rideId, waypoints):
     sql = """
-            INSERT INTO cibic21_waypoints_raw
+            INSERT INTO {}
             VALUES %s
-          """
+          """.format(waypointsTable)
     values = list((rideId, makeSqlPoint(wp['latitude'], wp['longitude']),
                     wp['timestamp'], wp['road_type'], wp['speed'], wp['distance'],
-                    wp['speed_limit'], wp['originalIdx']) for wp in waypoints)
-    # print(values)
+                    wp['speed_limit'], wp['originalIdx'], wp['zone']) for wp in waypoints)
     extras.execute_values(cur, sql, values)
     print('sql query execute result: ' + str(cur.statusmessage))
 
