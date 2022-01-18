@@ -4,7 +4,6 @@ import uuid
 from common.cibic_common import *
 from datetime import datetime
 
-dynamoDbClient = boto3.client('dynamodb')
 dynamoDbResource = boto3.resource('dynamodb')
 lambdaClient = boto3.client('lambda')
 

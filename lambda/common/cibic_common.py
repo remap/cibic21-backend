@@ -16,6 +16,7 @@ import math
 class CibicResources():
     class DynamoDB():
         EndpointRequests = 'cibic21-dynamodb-api-endpoint-requests'
+        JournalingRequests = 'cibic21-dynamodb-api-journaling-requests'
 
     # class S3Bucket():
         # SurveyMedia = # TBD
