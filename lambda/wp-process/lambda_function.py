@@ -34,11 +34,11 @@ def lambda_handler(event, context):
                 # calculate route derived data
                 derivedData = processWaypoints(waypoints)
                 # notify new derived data available
-                # response = snsClient.publish(TopicArn=statsReadyTopic,
-                #                             Message=json.dumps({'id':rideId, 'derivedData': derivedData }),
-                #                             Subject='derived data ready',
-                #                             )['MessageId']
-                # print('sent derived data ready notification: {}'.format(response))
+                response = snsClient.publish(TopicArn=statsReadyTopic,
+                                            Message=json.dumps({'id':rideId, 'derivedData': derivedData }),
+                                            Subject='derived data ready',
+                                            )['MessageId']
+                print('sent derived data ready notification: {}'.format(response))
 
                 # split waypoints into three zones
                 startZone, endZone, mainZone = splitWaypoints(obfuscateRadius, waypoints)
@@ -57,11 +57,11 @@ def lambda_handler(event, context):
                 cur.close()
 
                 # notify waypoints added
-                # response = snsClient.publish(TopicArn=statsReadyTopic,
-                #                             Message=json.dumps({'id':rideId}),
-                #                             Subject='waypoints ready',
-                #                             )['MessageId']
-                # print('sent waypoints ready notification: {}'.format(response))
+                response = snsClient.publish(TopicArn=statsReadyTopic,
+                                            Message=json.dumps({'id':rideId}),
+                                            Subject='waypoints ready',
+                                            )['MessageId']
+                print('sent waypoints ready notification: {}'.format(response))
             else:
                 return malformedMessageReply()
         else:
