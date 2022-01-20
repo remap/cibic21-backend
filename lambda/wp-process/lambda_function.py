@@ -57,7 +57,7 @@ def lambda_handler(event, context):
                 cur.close()
 
                 # notify waypoints added
-                response = snsClient.publish(TopicArn=statsReadyTopic,
+                response = snsClient.publish(TopicArn=waypointsReadyTopic,
                                             Message=json.dumps({'id':rideId}),
                                             Subject='waypoints ready',
                                             )['MessageId']
