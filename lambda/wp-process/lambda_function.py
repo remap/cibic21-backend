@@ -134,7 +134,7 @@ def splitWaypoints(radius, waypoints):
         startWp = waypoints[0]
         endWp = waypoints[-1]
         startZone = [startWp]
-        endZone = [endWp]
+        endZone = []
         mainZone = []
         wpIdx = 0
         for wp in waypoints:
@@ -154,6 +154,7 @@ def splitWaypoints(radius, waypoints):
                 wp['zone'] = 'main'
                 mainZone.append(wp)
             wpIdx += 1
+        endZone.append(endWp)
         print('split waypoints: start {}, end {}, main {}'
                 .format(len(startZone), len(endZone), len(mainZone)))
         return (startZone, endZone, mainZone)
@@ -164,8 +165,8 @@ def insertRide(cur, rideId, startZone, endZone):
     cLat1, cLon1, rad1 = obfuscateWaypoints(startZone)
     cLat2, cLon2, rad2 = obfuscateWaypoints(endZone)
     sqlInsertRide = """
-                    INSERT INTO {}("rideId", "startZone", "endZone")
-                    VALUES (%s,
+                    INSERT INTO {}("rideId", "startTime", "endTime", "startZone", "endZone")
+                    VALUES (%s, %s, %s,
                             ST_Buffer(ST_GeomFromText('{}',4326)::geography,
                                         {},'quad_segs=16')::geometry,
                             ST_Buffer(ST_GeomFromText('{}',4326)::geography,
@@ -174,7 +175,7 @@ def insertRide(cur, rideId, startZone, endZone):
                     """.format(routesTable,
                                 wktPoint(cLat1, cLon2), rad1,
                                 wktPoint(cLat2, cLon2), rad2)
-    cur.execute(sqlInsertRide, (rideId,))
+    cur.execute(sqlInsertRide, (rideId, startZone[0]['timestamp'], endZone[-1]['timestamp']))
 
 def obfuscateWaypoints(waypoints):
     centerLat = 0
