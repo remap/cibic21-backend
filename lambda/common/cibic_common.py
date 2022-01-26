@@ -18,6 +18,8 @@ class CibicResources():
         EndpointRequests = 'cibic21-dynamodb-api-endpoint-requests'
         JournalingRequests = 'cibic21-dynamodb-api-journaling-requests'
         RideData = 'cibic21-dynamodb-ride-data'
+        FilteredJournalingData = 'cibic21-dynamodb-exhibit-filtered-journaling-data'
+        UnfilteredJournalingData = 'cibic21-dynamodb-exhibit-unfiltered-journaling-data'
 
     # class S3Bucket():
         # SurveyMedia = # TBD
