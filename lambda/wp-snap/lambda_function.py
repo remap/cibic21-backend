@@ -2,6 +2,11 @@ from common.cibic_common import *
 import os
 import psycopg2
 from psycopg2 import extras # for fast batch insert, see https://www.psycopg.org/docs/extras.html#fast-exec
+import urllib.parse
+
+# Python 3.8 lambda environment does not have requests https://stackoverflow.com/questions/58952947/import-requests-on-aws-lambda-for-python-3-8
+# for a fix, see https://dev.to/razcodes/how-to-create-a-lambda-layer-in-aws-106m
+import requests
 
 pgDbName = os.environ['ENV_VAR_POSTGRES_DB']
 pgUsername = os.environ['ENV_VAR_POSTGRES_USER']
@@ -9,13 +14,17 @@ pgPassword = os.environ['ENV_VAR_POSTGRES_PASSWORD']
 pgServer = os.environ['ENV_VAR_PPOSTGRES_SERVER']
 routesTable = os.environ['ENV_VAR_POSTGRES_TABLE_ROUTES']
 waypointsTable = os.environ['ENV_VAR_POSTGRES_TABLE_WPS']
+roadsApiKey = os.environ['ENV_VAR_GOOGLE_API_KEY']
+roadsApiUrl = 'https://roads.googleapis.com/v1/snapToRoads?key={}&interpolate={}&path={}'
+
+lambdaClient = boto3.client('lambda')
 
 # lambda is triggered by SNS notification
 # SNS message expected payload:
 # { "id": "<ride-id>" }
 def lambda_handler(event, context):
     try:
-        print (event)
+        # print (event)
         for rec in event['Records']:
             payload = json.loads(rec['Sns']['Message'])
             if 'id' in payload:
@@ -27,6 +36,30 @@ def lambda_handler(event, context):
 
                 # retrieve waypoints
                 waypoints = selectWaypoints(cur, payload['id'])
+                snappedWpts = []
+
+                # res = lambdaClient.invoke(FunctionName = 'arn:aws:lambda:us-west-1:627943213575:function:cibic21-lambda-groads-api-proxy',
+                #                     InvocationType = 'Event',
+                #                     Payload = json.dumps(waypoints)
+                #                     )
+                # print('lambda invocation result {}'.format(res))
+
+                # roads API limits requests to up to 100 points
+                #[our_list[i:i+chunk_size] for i in range(0, len(our_list),
+                batches = [waypoints[i:i+100] for i in range(0, len(waypoints), 100)]
+                for b in batches:
+                    print('snapping batch of {}'.format(len(b)))
+                    url = makeSnappingRequest(b)
+                    response = requests.request("GET", url, headers={}, data={})
+                    if response.status_code/100 == 2:
+                        processedWpts = processSnappingResponse(b, json.loads(response.text))
+                        print('received {} snapped waypoints'.format(len(processedWpts)))
+                        print(processedWpts)
+                        snappedWpts.extend(processedWpts)
+                    else:
+                        print('Roads API request failed with code {}'.format(response.status_code))
+
+                # store snapped waypoints in DB
 
                 conn.commit()
                 cur.close()
@@ -39,25 +72,53 @@ def lambda_handler(event, context):
 
 def selectWaypoints(cur, rideId):
     sql = """
-          SELECT * FROM {}
+          SELECT ST_Y(coordinate::geometry) as latitude,
+                 ST_X(coordinate::geometry) as longitude,
+                 timestamp, "roadType", speed, distance, "speedLimit", idx
+          FROM {}
           WHERE "rideId"=%s AND zone=%s
           """.format(waypointsTable)
     try:
         cur.execute(sql, (rideId, "main"))
         waypoints = []
         for wp in cur.fetchall():
-            # lon,lat = wp[1]
             waypoints.append({
-                'coordinate': wp[1], # { 'latitude': lat, 'longitude': lon},
-                'timestamp': wp[2],
+                'latitude': wp[0],
+                'longitude': wp[1],
+                'timestamp': wp[2].astimezone().strftime("%Y-%m-%dT%H:%M:%S.%f%z"),
                 'roadType': wp[3],
                 'speed': wp[4],
                 'distance': wp[5],
-                'speedLimit': wp[6]
+                'speedLimit': wp[6],
+                'idx': wp[7]
             })
-        print(waypoints)
+        # print(waypoints)
         print('{} waypoints fetched'.format(len(waypoints)))
         return waypoints
     except (Exception, psycopg2.Error) as error:
         print("error fetching data from PostgreSQL table", error)
     return []
+
+def makeSnappingRequest(waypoints):
+    pathParam = ''
+    for wp in waypoints:
+      if len(pathParam): pathParam = pathParam + '|'
+      pathParam += '{},{}'.format(wp['latitude'], wp['longitude'])
+    return roadsApiUrl.format(roadsApiKey, 'true', urllib.parse.quote(pathParam))
+
+def processSnappingResponse(waypoints, response):
+    snappedWpts = []
+    for snappedWp in response['snappedPoints']:
+        rawIdx = -1
+        isInterpolated = not 'originalIndex' in snappedWp
+        if not isInterpolated:
+            origIdx = snappedWp['originalIndex']
+            rawIdx = origIdx + waypoints[origIdx]['idx']
+        snappedWpts.append({
+            'latitude': snappedWp['location']['latitude'],
+            'longitude': snappedWp['location']['longitude'],
+            'googlePlaceId': snappedWp['placeId'],
+            'isInterpolated': isInterpolated,
+            'rawIdx': rawIdx
+        })
+    return snappedWpts
