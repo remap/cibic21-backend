@@ -88,7 +88,7 @@ def lambda_handler(event, context):
         'timestamp' : requestTimestamp,
         'requestId': requestId,
         'body' : json.dumps(requestBody),
-        'processed' : False,
+        'processed' : requestProcessed,
         'error' : str(err)
     })
 
