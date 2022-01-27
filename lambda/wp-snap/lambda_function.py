@@ -16,9 +16,11 @@ routesTable = os.environ['ENV_VAR_POSTGRES_TABLE_ROUTES']
 waypointsTable = os.environ['ENV_VAR_POSTGRES_TABLE_WPS']
 snappedWpTable = os.environ['ENV_VAR_POSTGRES_TABLE_SNAPPED_WPS']
 roadsApiKey = os.environ['ENV_VAR_GOOGLE_API_KEY']
+rideReadyTopic = os.environ['ENV_SNS_RIDE_READY']
 roadsApiUrl = 'https://roads.googleapis.com/v1/snapToRoads?key={}&interpolate={}&path={}'
 
 lambdaClient = boto3.client('lambda')
+snsClient = boto3.client('sns')
 
 # lambda is triggered by SNS notification
 # SNS message expected payload:
@@ -57,10 +59,15 @@ def lambda_handler(event, context):
                 # store snapped waypoints in DB
                 insertSnappedWaypoints(cur, rideId, snappedWpts)
 
-                # build PATH and store it in rides table
-
                 conn.commit()
                 cur.close()
+
+                # notify waypoints added
+                response = snsClient.publish(TopicArn=rideReadyTopic,
+                                            Message=json.dumps({'id':rideId}),
+                                            Subject='new ride ready',
+                                            )['MessageId']
+                print('sent ride ready notification: {}'.format(response))
     except:
         err = reportError()
         print('caught exception:', sys.exc_info()[0])
