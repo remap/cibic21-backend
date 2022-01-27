@@ -14,6 +14,7 @@ pgPassword = os.environ['ENV_VAR_POSTGRES_PASSWORD']
 pgServer = os.environ['ENV_VAR_PPOSTGRES_SERVER']
 routesTable = os.environ['ENV_VAR_POSTGRES_TABLE_ROUTES']
 waypointsTable = os.environ['ENV_VAR_POSTGRES_TABLE_WPS']
+snappedWpTable = os.environ['ENV_VAR_POSTGRES_TABLE_SNAPPED_WPS']
 roadsApiKey = os.environ['ENV_VAR_GOOGLE_API_KEY']
 roadsApiUrl = 'https://roads.googleapis.com/v1/snapToRoads?key={}&interpolate={}&path={}'
 
@@ -28,24 +29,18 @@ def lambda_handler(event, context):
         for rec in event['Records']:
             payload = json.loads(rec['Sns']['Message'])
             if 'id' in payload:
-                print ('route snapping for ride id {}'.format(payload['id']))
+                rideId = payload['id']
+                print ('route snapping for ride id {}'.format(rideId))
 
                 conn = psycopg2.connect(host=pgServer, database=pgDbName,
                                         user=pgUsername, password=pgPassword)
                 cur = conn.cursor()
 
                 # retrieve waypoints
-                waypoints = selectWaypoints(cur, payload['id'])
+                waypoints = selectWaypoints(cur, rideId)
                 snappedWpts = []
 
-                # res = lambdaClient.invoke(FunctionName = 'arn:aws:lambda:us-west-1:627943213575:function:cibic21-lambda-groads-api-proxy',
-                #                     InvocationType = 'Event',
-                #                     Payload = json.dumps(waypoints)
-                #                     )
-                # print('lambda invocation result {}'.format(res))
-
                 # roads API limits requests to up to 100 points
-                #[our_list[i:i+chunk_size] for i in range(0, len(our_list),
                 batches = [waypoints[i:i+100] for i in range(0, len(waypoints), 100)]
                 for b in batches:
                     print('snapping batch of {}'.format(len(b)))
@@ -53,13 +48,16 @@ def lambda_handler(event, context):
                     response = requests.request("GET", url, headers={}, data={})
                     if response.status_code/100 == 2:
                         processedWpts = processSnappingResponse(b, json.loads(response.text))
-                        print('received {} snapped waypoints'.format(len(processedWpts)))
-                        print(processedWpts)
+                        # print('received {} snapped waypoints'.format(len(processedWpts)))
+                        # print(processedWpts)
                         snappedWpts.extend(processedWpts)
                     else:
                         print('Roads API request failed with code {}'.format(response.status_code))
 
                 # store snapped waypoints in DB
+                insertSnappedWaypoints(cur, rideId, snappedWpts)
+
+                # build PATH and store it in rides table
 
                 conn.commit()
                 cur.close()
@@ -122,3 +120,17 @@ def processSnappingResponse(waypoints, response):
             'rawIdx': rawIdx
         })
     return snappedWpts
+
+def makeSqlPoint(lat, lon):
+    return str(lon) + ', ' + str(lat)
+
+def insertSnappedWaypoints(cur, rideId, waypoints):
+    sql = """
+            INSERT INTO {}
+            VALUES %s
+          """.format(snappedWpTable)
+    values = list((rideId, makeSqlPoint(wp['latitude'], wp['longitude']),
+                    wp['rawIdx'], wp['isInterpolated'],
+                    wp['googlePlaceId'], idx) for idx, wp in enumerate(waypoints))
+    extras.execute_values(cur, sql, values)
+    print('sql query execute result: ' + str(cur.statusmessage))
