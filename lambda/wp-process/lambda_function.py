@@ -173,7 +173,7 @@ def insertRide(cur, rideId, startZone, endZone):
                                         {},'quad_segs=16')::geometry
                     )
                     """.format(routesTable,
-                                wktPoint(cLat1, cLon2), rad1,
+                                wktPoint(cLat1, cLon1), rad1,
                                 wktPoint(cLat2, cLon2), rad2)
     cur.execute(sqlInsertRide, (rideId, startZone[0]['timestamp'], endZone[-1]['timestamp']))
 
@@ -186,8 +186,8 @@ def obfuscateWaypoints(waypoints):
     for wp in waypoints:
         centerLat += wp["latitude"]
         centerLon += wp["longitude"]
-    centerLat /= len(waypoints)
-    centerLon /= len(waypoints)
+    centerLat /= float(len(waypoints))
+    centerLon /= float(len(waypoints))
     # find min radius to cover all waypoints
     minRadius = 0
     for wp in waypoints:
