@@ -4,6 +4,9 @@ from boto3.dynamodb.conditions import Key
 from common.cibic_common import *
 
 dynamoDbResource = boto3.resource('dynamodb')
+rekognition = boto3.client('rekognition')
+# Comprehend is not available in us-west-1, so use another region.
+comprehend = boto3.client('comprehend', region_name='us-west-2')
 
 snsTopicArn = os.environ['ENV_VAR_SNS_TOPIC_JOURNALING_DATA_READY']
 
@@ -28,15 +31,15 @@ def lambda_handler(event, context):
                         # The requestId is supposed to be unique, so assume one item.
                         if (dynamodbResponse['Count'] == 1 and
                             'body' in dynamodbResponse['Items'][0]):
-                            body = dynamodbResponse['Items'][0]['body']
-                            print('Moderating journaling request {}, data {}'
+                            body = json.loads(dynamodbResponse['Items'][0]['body'])
+                            print('Moderating journaling request {}, body {}'
                               .format(requestId, body))
                             moderateJournalEntry(body)
 
                             # Store the body of the moderated entry in DynamoDB.
                             filteredJournalingTable.put_item(Item = {
                               'requestId': requestId,
-                              'body': body
+                              'body': json.dumps(body)
                             })
                         else:
                             print("WARNING: No message body in unfilteredJournalingTable, requestId " +
@@ -44,26 +47,11 @@ def lambda_handler(event, context):
         else:
             return malformedMessageReply()
 
-        comprehend = boto3.client('comprehend', region_name='us-west-2')
-        comprehend_response = comprehend.detect_entities(
-            LanguageCode='es',
-            Text = "Hola Zhang Wei, soy John. Su cuenta de tarjeta de crédito de AnyCompany Financial Services, LLC " +
-              "1111-0000-1111-0008 tiene un pago mínimo de $24.53 que vence el 31 de julio. Según su configuración de pago automático, " +
-              "retiraremos su pago en la fecha de vencimiento de su cuenta bancaria número XXXXXX1111 con el número de ruta XXXXX0000. " +
-              "Su último estado de cuenta se envió por correo a 100 Main Street, Any City, WA 98121. " +
-              "Después de recibir su pago, recibirá un mensaje de texto de confirmación al 206-555-0100. " +
-              "Si tiene preguntas sobre su factura, el Servicio de atención al cliente de AnyCompany está disponible por teléfono al "
-              "206-555-0199 o por correo electrónico a support@anycompany.com."
-        )
-        print('comprehend response:')
-        print(comprehend_response)
-
-        rekognition = boto3.client('rekognition')
-        rekognition_response = rekognition.detect_moderation_labels(
+        rekognitionResponse = rekognition.detect_moderation_labels(
             Image = { 'Bytes': base64.b64decode(TestImage) }
         )
         print('rekognition response:')
-        print(rekognition_response)
+        print(rekognitionResponse)
     except:
         err = reportError()
         print('caught exception:', sys.exc_info()[0])
@@ -71,13 +59,61 @@ def lambda_handler(event, context):
 
     return processedReply()
 
-
 def moderateJournalEntry(body):
     """
     Modify the body of the entry in place by removing moderated content.
+
+    :param body: The journal body which has been converted from JSON into a dict.
     """
+    # TODO: What are the important journal entry fields?
+    fieldName = 'Bio'
+    if fieldName in body:
+        text = body[fieldName]
+
+        # Check if the language is English.
+        languageCode = ""
+        detectLanguageResponse = comprehend.detect_dominant_language(
+          Text = text
+        )
+        if 'Languages' in detectLanguageResponse:
+            languageCode = detectLanguageResponse['Languages'][0]['LanguageCode']
+
+        if languageCode == "en":
+            # Use Detect PII Entities, which is only available in English.
+            comprehendResponse = comprehend.detect_pii_entities(
+              LanguageCode = languageCode,
+              Text = text
+            )
+            if 'Entities' in comprehendResponse:
+                body[fieldName] = redact(text, comprehendResponse['Entities'])
+
     return body
 
+def redact(text, entities):
+    """
+    Return a new string where the substring of each detected entity is replaced
+    by a string of stars of equal length.
+
+    :param str text: The text with substrings to redact.
+    :param entities: An array of dict with 'BeginOffset' and 'EndOffset' (as
+      returned by AWS Comprehend Detect Entities).
+    :return: The redacted text.
+    :rtype: str
+    """
+    if len(entities) == 0:
+        # Don't need to redact anything.
+        return text
+
+    for entity in entities:
+        beginOffset = entity['BeginOffset']
+        endOffset = entity['EndOffset']
+        if endOffset <= beginOffset or beginOffset > len(text) or endOffset > len(text):
+            # We don't really expect this.
+            continue
+        text = text[:beginOffset] + "*" * (endOffset - beginOffset) + text[endOffset:]
+
+    return text
+        
 TestImage = ("iVBORw0KGgoAAAANSUhEUgAAAHEAAACNCAYAAACALpWyAAAEGWlDQ1BrQ0dDb2xvclNwYWNlR2VuZXJpY1JHQgAAOI2NVV1oHFUU"+
 "PrtzZyMkzlNsNIV0qD8NJQ2TVjShtLp/3d02bpZJNtoi6GT27s6Yyc44M7v9oU9FUHwx6psUxL+3gCAo9Q/bPrQvlQol2tQgKD60"+
 "+INQ6Ium65k7M5lpurHeZe58853vnnvuuWfvBei5qliWkRQBFpquLRcy4nOHj4g9K5CEh6AXBqFXUR0rXalMAjZPC3e1W99Dwntf"+
