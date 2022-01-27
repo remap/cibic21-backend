@@ -12,7 +12,7 @@ pgPassword = os.environ['ENV_VAR_POSTGRES_PASSWORD']
 pgServer = os.environ['ENV_VAR_PPOSTGRES_SERVER']
 routesTable = os.environ['ENV_VAR_POSTGRES_TABLE_ROUTES']
 waypointsTable = os.environ['ENV_VAR_POSTGRES_TABLE_WPS']
-statsReadyTopic = os.environ['ENV_SNS_DERIVED_DATA_READY']
+derivedDataReadyTopic = os.environ['ENV_SNS_DERIVED_DATA_READY']
 waypointsReadyTopic = os.environ['ENV_SNS_WAYPOINTS_READY']
 
 # process waypoints data
@@ -34,7 +34,7 @@ def lambda_handler(event, context):
                 # calculate route derived data
                 derivedData = processWaypoints(waypoints)
                 # notify new derived data available
-                response = snsClient.publish(TopicArn=statsReadyTopic,
+                response = snsClient.publish(TopicArn=derivedDataReadyTopic,
                                             Message=json.dumps({'id':rideId, 'derivedData': derivedData }),
                                             Subject='derived data ready',
                                             )['MessageId']
