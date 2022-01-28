@@ -34,7 +34,10 @@ def lambda_handler(event, context):
                 if not startTime or not endTime:
                     return lambdaReply(420, 'bad format for startTime/endTime parameters')
 
-                rides = queryRides(startTime, endTime)
+                if 'idsOnly' in event['queryStringParameters']:
+                    rides = queryRidesSimple(startTime, endTime)
+                else:
+                    rides = queryRidesRich(startTime, endTime)
                 print('fetched {} rides'.format(len(rides)))
                 return lambdaReply(200, rides)
             else:
@@ -105,7 +108,27 @@ def parseDatetime(ss):
     except:
         return None
 
-def queryRides(startTime, endTime):
+def queryRidesSimple(startTime, endTime):
+    sql = """
+            SELECT ride."rideId"
+            FROM {0} as ride
+            WHERE ride."startTime" BETWEEN '{1}' AND '{2}' AND ride."endTime" BETWEEN '{1}' AND '{2}'
+          """.format(routesTable, startTime, endTime)
+    conn = psycopg2.connect(host=pgServer, database=pgDbName,
+                                        user=pgUsername, password=pgPassword)
+    cur = conn.cursor()
+    cur.execute(sql)
+
+    rides = []
+    for r in cur.fetchall():
+        rides.append(r[0])
+    conn.commit()
+    cur.close()
+
+    return rides
+
+
+def queryRidesRich(startTime, endTime):
     sql = """
             SELECT json_build_object(
                     'type', 'FeatureCollection',
