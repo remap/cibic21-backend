@@ -11,3 +11,7 @@ rsync -av _template/ my-lambda
   **NOTE:** If you use custom dependencies, list them in `<your-lambda-folder>/requirements.txt` and you'll need Docker to deploy your lambda (see `upload.sh`).
 
 * `common` -- contains single python file with helpers that are imported by lambdas;
+
+## Note on lambda dependencies
+
+If your lambda requires modules, not provided by AWS lambda environment, you can utilize lambda layers. [Here](https://dev.to/razcodes/how-to-create-a-lambda-layer-in-aws-106m) is a simple quick-start example on how to prepare, upload and setup a lambda layer.
