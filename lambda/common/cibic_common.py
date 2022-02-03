@@ -15,6 +15,7 @@ import math
 ################################################################################
 class CibicResources():
     class DynamoDB():
+        # By default, table names are for the prod stage. For the dev stage, append "-dev".
         EndpointRequests = 'cibic21-dynamodb-api-endpoint-requests'
         JournalingRequests = 'cibic21-dynamodb-api-journaling-requests'
         RideData = 'cibic21-dynamodb-ride-data'
