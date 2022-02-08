@@ -78,7 +78,9 @@ def lambda_handler(event, context):
             print('wp-proc async-invoke reply status code '+str(res['StatusCode']))
 
             requestProcessed = True
-            requestReply = processedReply()
+            requestReply = lambdaReply(200, {
+              'reply': 'Message processed',
+              'requestId': requestId })
     except:
         err = reportError()
         print('caught exception:', sys.exc_info()[0])
