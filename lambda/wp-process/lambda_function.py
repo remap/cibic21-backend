@@ -24,12 +24,13 @@ waypointsReadyTopic = os.environ['ENV_SNS_WAYPOINTS_READY']
 def lambda_handler(event, context):
     try:
         if 'rid' in event and 'data' in event:
+            requestId = event['rid']
             payload = event['data']
             if 'id' in payload and 'waypoints' in payload:
                 rideId = payload['id']
                 waypoints = validateWaypoints(payload['waypoints'])
                 print ('API request {} process waypoints for ride {} ({} waypoints)'
-                    .format(event['rid'], rideId, len(waypoints)))
+                    .format(requestId, rideId, len(waypoints)))
 
                 # calculate route derived data
                 derivedData = processWaypoints(waypoints)
@@ -49,9 +50,9 @@ def lambda_handler(event, context):
                 cur = conn.cursor()
 
                 # insert new ride
-                insertRide(cur, rideId, startZone, endZone)
+                insertRide(cur, rideId, requestId, startZone, endZone)
                 # insert raw waypoints
-                insertRawWaypoints(cur, rideId, waypoints)
+                insertRawWaypoints(cur, rideId, requestId, waypoints)
 
                 conn.commit()
                 cur.close()
@@ -160,13 +161,13 @@ def splitWaypoints(radius, waypoints):
         return (startZone, endZone, mainZone)
     return ([],[],[])
 
-def insertRide(cur, rideId, startZone, endZone):
+def insertRide(cur, rideId, requestId, startZone, endZone):
     # generate start / end geometry
     cLat1, cLon1, rad1 = obfuscateWaypoints(startZone)
     cLat2, cLon2, rad2 = obfuscateWaypoints(endZone)
     sqlInsertRide = """
-                    INSERT INTO {}("rideId", "startTime", "endTime", "startZone", "endZone")
-                    VALUES (%s, %s, %s,
+                    INSERT INTO {}("rideId", "requestId", "startTime", "endTime", "startZone", "endZone")
+                    VALUES (%s, %s, %s, %s,
                             ST_Buffer(ST_GeomFromText('{}',4326)::geography,
                                         {},'quad_segs=16')::geometry,
                             ST_Buffer(ST_GeomFromText('{}',4326)::geography,
@@ -175,7 +176,7 @@ def insertRide(cur, rideId, startZone, endZone):
                     """.format(routesTable,
                                 wktPoint(cLat1, cLon1), rad1,
                                 wktPoint(cLat2, cLon2), rad2)
-    cur.execute(sqlInsertRide, (rideId, startZone[0]['timestamp'], endZone[-1]['timestamp']))
+    cur.execute(sqlInsertRide, (rideId, requestId, startZone[0]['timestamp'], endZone[-1]['timestamp']))
 
 def obfuscateWaypoints(waypoints):
     centerLat = 0
@@ -201,14 +202,14 @@ def obfuscateWaypoints(waypoints):
 def wktPoint(lat, lon):
     return 'POINT({} {})'.format(lon, lat)
 
-def insertRawWaypoints(cur, rideId, waypoints):
+def insertRawWaypoints(cur, rideId, requestId, waypoints):
     sql = """
             INSERT INTO {}
             VALUES %s
           """.format(waypointsTable)
     values = list((rideId, makeSqlPoint(wp['latitude'], wp['longitude']),
                     wp['timestamp'], wp['road_type'], wp['speed'], wp['distance'],
-                    wp['speed_limit'], wp['originalIdx'], wp['zone']) for wp in waypoints)
+                    wp['speed_limit'], wp['originalIdx'], wp['zone'], requestId) for wp in waypoints)
     extras.execute_values(cur, sql, values)
     print('sql query execute result: ' + str(cur.statusmessage))
 
