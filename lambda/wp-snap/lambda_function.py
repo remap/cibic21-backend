@@ -30,9 +30,10 @@ def lambda_handler(event, context):
         # print (event)
         for rec in event['Records']:
             payload = json.loads(rec['Sns']['Message'])
-            if 'id' in payload:
+            if 'id' in payload and 'requestId' in payload:
                 rideId = payload['id']
-                print ('route snapping for ride id {}'.format(rideId))
+                requestId = payload['requestId']
+                print ('route snapping for ride id {}, requestId {}'.format(rideId, requestId))
 
                 conn = psycopg2.connect(host=pgServer, database=pgDbName,
                                         user=pgUsername, password=pgPassword)
@@ -57,14 +58,14 @@ def lambda_handler(event, context):
                         print('Roads API request failed with code {}'.format(response.status_code))
 
                 # store snapped waypoints in DB
-                insertSnappedWaypoints(cur, rideId, snappedWpts)
+                insertSnappedWaypoints(cur, rideId, requestId, snappedWpts)
 
                 conn.commit()
                 cur.close()
 
                 # notify waypoints added
                 response = snsClient.publish(TopicArn=rideReadyTopic,
-                                            Message=json.dumps({'id':rideId}),
+                                            Message=json.dumps({'id':rideId, 'requestId':requestId}),
                                             Subject='new ride ready',
                                             )['MessageId']
                 print('sent ride ready notification: {}'.format(response))
@@ -131,13 +132,13 @@ def processSnappingResponse(waypoints, response):
 def makeSqlPoint(lat, lon):
     return str(lon) + ', ' + str(lat)
 
-def insertSnappedWaypoints(cur, rideId, waypoints):
+def insertSnappedWaypoints(cur, rideId, requestId, waypoints):
     sql = """
             INSERT INTO {}
             VALUES %s
           """.format(snappedWpTable)
     values = list((rideId, makeSqlPoint(wp['latitude'], wp['longitude']),
                     wp['rawIdx'], wp['isInterpolated'],
-                    wp['googlePlaceId'], idx) for idx, wp in enumerate(waypoints))
+                    wp['googlePlaceId'], idx, requestId) for idx, wp in enumerate(waypoints))
     extras.execute_values(cur, sql, values)
     print('sql query execute result: ' + str(cur.statusmessage))
