@@ -21,6 +21,7 @@ class CibicResources():
         RideData = 'cibic21-dynamodb-ride-data'
         FilteredJournalingData = 'cibic21-dynamodb-exhibit-filtered-journaling-data'
         UnfilteredJournalingData = 'cibic21-dynamodb-exhibit-unfiltered-journaling-data'
+        RawSurveyResponses = 'cibic21-dynamodb-raw-survey-responses'
 
     # class S3Bucket():
         # SurveyMedia = # TBD
