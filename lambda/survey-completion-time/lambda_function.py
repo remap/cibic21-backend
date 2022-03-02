@@ -22,7 +22,11 @@ def lambda_handler(event, context):
         response = surveysTable.scan(
           FilterExpression = Attr('userId').eq(userId) &
                              Attr('role').eq(role) &
-                             Attr('processed').eq(True)
+                             Attr('processed').eq(True),
+          # Limit each item to only the timestamp instead of fetching the entire survey.
+          # We have to use ExpressionAttributeNames since timestamp is a reserved keyword.
+          ProjectionExpression = '#c',
+          ExpressionAttributeNames = {'#c': 'timestamp'}
         )
         items = response['Items']
         
