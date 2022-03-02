@@ -1,3 +1,10 @@
+# This Lambda processes the SurveyMonkey webhook for when a survey is completed.
+# Get the survey_id and response_id from the event and get the survey from
+# SurveyMonkey using the bearer token (which is a Lambda environment variable).
+# Also get the userId and role which were in the query parameters of the
+# SurveyMonkey web page. Finally, put the result in the DynamoDB table for raw
+# survey data.
+
 import boto3
 from datetime import datetime, timezone
 from common.cibic_common import *
