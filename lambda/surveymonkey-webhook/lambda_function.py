@@ -1,4 +1,5 @@
 import boto3
+from datetime import datetime, timezone
 from common.cibic_common import *
 
 # Python 3.8 lambda environment does not have requests https://stackoverflow.com/questions/58952947/import-requests-on-aws-lambda-for-python-3-8
@@ -10,7 +11,8 @@ dynamoDbResource = boto3.resource('dynamodb')
 
 def lambda_handler(event, context):
     surveysTable = dynamoDbResource.Table(CibicResources.DynamoDB.RawSurveyResponses)
-    requestTimestamp = datetime.now().astimezone().strftime("%m/%d/%Y %H:%M:%S.%f UTC%z")
+    # Make sure it is UTC with the year first so we can sort on it.
+    requestTimestamp = datetime.now().astimezone(tz=timezone.utc).strftime("%Y/%m/%d %H:%M:%S.%f UTC%z")
     requestId = str(uuid.uuid4()) # generate request uuid
     userId = ''
     role = ''
