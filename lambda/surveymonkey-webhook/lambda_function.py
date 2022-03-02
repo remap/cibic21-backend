@@ -9,9 +9,11 @@ bearer_token = os.environ['ENV_VAR_SURVEYMONKEY_BEARER_TOKEN']
 dynamoDbResource = boto3.resource('dynamodb')
 
 def lambda_handler(event, context):
-    requestsTable = dynamoDbResource.Table(CibicResources.DynamoDB.RawSurveyResponses)
+    surveysTable = dynamoDbResource.Table(CibicResources.DynamoDB.RawSurveyResponses)
     requestTimestamp = datetime.now().astimezone().strftime("%m/%d/%Y %H:%M:%S.%f UTC%z")
     requestId = str(uuid.uuid4()) # generate request uuid
+    userId = ''
+    role = ''
     requestProcessed = False
     surveyBody = ''
     requestReply = {}
@@ -31,6 +33,10 @@ def lambda_handler(event, context):
                 headers = {'Authorization': 'bearer ' + bearer_token})
             if response.status_code/100 == 2:
                 surveyBody = response.json()
+                if 'custom_variables' in surveyBody and 'userId' in surveyBody['custom_variables']:
+                    userId = surveyBody['custom_variables']['userId']
+                if 'custom_variables' in surveyBody and 'role' in surveyBody['custom_variables']:
+                    role = surveyBody['custom_variables']['role']
 
                 requestProcessed = True
                 requestReply = processedReply()
@@ -48,9 +54,11 @@ def lambda_handler(event, context):
         requestReply = lambdaReply(420, str(err))
 
     # Store survey data in DynamoDB table.
-    requestsTable.put_item(Item = {
+    surveysTable.put_item(Item = {
         'timestamp' : requestTimestamp,
         'requestId': requestId,
+        'userId': userId,
+        'role': role,
         'body' : json.dumps(surveyBody),
         'processed' : requestProcessed,
         'error' : str(err)
