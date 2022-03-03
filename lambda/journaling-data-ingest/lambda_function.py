@@ -2,14 +2,17 @@ import boto3
 import os
 import uuid
 from common.cibic_common import *
-from datetime import datetime
+from datetime import datetime, timezone
 
 dynamoDbResource = boto3.resource('dynamodb')
 
 def lambda_handler(event, context):
     requestsTable = dynamoDbResource.Table(CibicResources.DynamoDB.JournalingRequests)
-    requestTimestamp = datetime.now().astimezone().strftime("%m/%d/%Y %H:%M:%S.%f UTC%z")
+    # Make sure it is UTC with the year first so we can sort on it.
+    requestTimestamp = datetime.now().astimezone(tz=timezone.utc).strftime("%Y/%m/%d %H:%M:%S.%f UTC%z")
     requestId = str(uuid.uuid4()) # generate request uuid
+    userId = ''
+    role = ''
     requestProcessed = False
     requestBody = ''
     requestReply = {}
@@ -22,6 +25,11 @@ def lambda_handler(event, context):
         requestBody = json.loads(event['body'])
         print('body data ' + str(requestBody))
 
+        if 'userId' in requestBody:
+            userId = requestBody['userId']
+        if 'role' in requestBody:
+            role = requestBody['role']
+
         requestProcessed = True
         requestReply = processedReply()
     except:
@@ -33,6 +41,8 @@ def lambda_handler(event, context):
     requestsTable.put_item(Item = {
         'timestamp' : requestTimestamp,
         'requestId': requestId,
+        'userId': userId,
+        'role': role,
         'body' : json.dumps(requestBody),
         'processed' : requestProcessed,
         'error' : str(err)
