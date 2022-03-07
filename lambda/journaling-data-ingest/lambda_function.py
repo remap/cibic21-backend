@@ -31,7 +31,12 @@ def lambda_handler(event, context):
             role = requestBody['role']
 
         requestProcessed = True
-        requestReply = processedReply()
+        # Give the response to enable CORS.
+        requestReply = {
+            'statusCode': 200,
+            'headers': { "Access-Control-Allow-Origin": "*" },
+            'body': 'Message processed'
+        }
     except:
         err = reportError()
         print('caught exception:', sys.exc_info()[0])
