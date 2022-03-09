@@ -7,7 +7,7 @@ import urllib
 pgDbName = os.environ['ENV_VAR_POSTGRES_DB']
 pgUsername = os.environ['ENV_VAR_POSTGRES_USER']
 pgPassword = os.environ['ENV_VAR_POSTGRES_PASSWORD']
-pgServer = os.environ['ENV_VAR_PPOSTGRES_SERVER']
+pgServer = os.environ['ENV_VAR_POSTGRES_SERVER']
 routesTable = os.environ['ENV_VAR_POSTGRES_TABLE_ROUTES']
 snappedWpTable = os.environ['ENV_VAR_POSTGRES_TABLE_SNAPPED_WPS']
 
