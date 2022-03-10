@@ -23,6 +23,10 @@ class CibicResources():
         UnfilteredJournalingData = 'cibic21-dynamodb-exhibit-unfiltered-journaling-data'
         RawSurveyResponses = 'cibic21-dynamodb-raw-survey-responses'
 
+    class Postgres():
+        # By default, table names are for the prod stage. For the dev stage, append "_dev".
+        UserEnrollments = 'cibic21_user_enrollments'
+
     # class S3Bucket():
         # SurveyMedia = # TBD
 
