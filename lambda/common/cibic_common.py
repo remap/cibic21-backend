@@ -25,6 +25,9 @@ class CibicResources():
 
     class Postgres():
         # By default, table names are for the prod stage. For the dev stage, append "_dev".
+        Rides = 'cibic21_rides'
+        WaypointsRaw = 'cibic21_waypoints_raw'
+        WaypointsSnapped = 'cibic21_waypoints_snapped'
         UserEnrollments = 'cibic21_user_enrollments'
 
     # class S3Bucket():

@@ -12,14 +12,10 @@ pgDbName = os.environ['ENV_VAR_POSTGRES_DB']
 pgUsername = os.environ['ENV_VAR_POSTGRES_USER']
 pgPassword = os.environ['ENV_VAR_POSTGRES_PASSWORD']
 pgServer = os.environ['ENV_VAR_POSTGRES_SERVER']
-routesTable = os.environ['ENV_VAR_POSTGRES_TABLE_ROUTES']
-waypointsTable = os.environ['ENV_VAR_POSTGRES_TABLE_WPS']
-snappedWpTable = os.environ['ENV_VAR_POSTGRES_TABLE_SNAPPED_WPS']
 roadsApiKey = os.environ['ENV_VAR_GOOGLE_API_KEY']
 rideReadyTopic = os.environ['ENV_SNS_RIDE_READY']
 roadsApiUrl = 'https://roads.googleapis.com/v1/snapToRoads?key={}&interpolate={}&path={}'
 
-lambdaClient = boto3.client('lambda')
 snsClient = boto3.client('sns')
 
 # lambda is triggered by SNS notification
@@ -83,7 +79,7 @@ def selectWaypoints(cur, rideId):
                  timestamp, "roadType", speed, distance, "speedLimit", idx
           FROM {}
           WHERE "rideId"=%s AND zone=%s
-          """.format(waypointsTable)
+          """.format(CibicResources.Postgres.WaypointsRaw)
     try:
         cur.execute(sql, (rideId, "main"))
         waypoints = []
@@ -136,7 +132,7 @@ def insertSnappedWaypoints(cur, rideId, requestId, waypoints):
     sql = """
             INSERT INTO {}
             VALUES %s
-          """.format(snappedWpTable)
+          """.format(CibicResources.Postgres.WaypointsSnapped)
     values = list((rideId, makeSqlPoint(wp['latitude'], wp['longitude']),
                     wp['rawIdx'], wp['isInterpolated'],
                     wp['googlePlaceId'], idx, requestId) for idx, wp in enumerate(waypoints))

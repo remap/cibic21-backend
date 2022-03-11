@@ -8,8 +8,6 @@ pgDbName = os.environ['ENV_VAR_POSTGRES_DB']
 pgUsername = os.environ['ENV_VAR_POSTGRES_USER']
 pgPassword = os.environ['ENV_VAR_POSTGRES_PASSWORD']
 pgServer = os.environ['ENV_VAR_POSTGRES_SERVER']
-routesTable = os.environ['ENV_VAR_POSTGRES_TABLE_ROUTES']
-snappedWpTable = os.environ['ENV_VAR_POSTGRES_TABLE_SNAPPED_WPS']
 
 def lambda_handler(event, context):
     try:
@@ -84,7 +82,7 @@ def fetchRide(rideId):
                         ON ride."rideId" = wp."rideId"
                         WHERE ride."rideId" = '{}'
                         GROUP BY ride."rideId") AS geo) AS feature_collection;
-          """.format(routesTable, snappedWpTable, rideId)
+          """.format(CibicResources.Postgres.Rides, CibicResources.Postgres.WaypointsSnapped, rideId)
     conn = psycopg2.connect(host=pgServer, database=pgDbName,
                                             user=pgUsername, password=pgPassword)
     cur = conn.cursor()
@@ -113,7 +111,7 @@ def queryRidesSimple(startTime, endTime):
             SELECT ride."rideId"
             FROM {0} as ride
             WHERE ride."startTime" BETWEEN '{1}' AND '{2}' AND ride."endTime" BETWEEN '{1}' AND '{2}'
-          """.format(routesTable, startTime, endTime)
+          """.format(CibicResources.Postgres.Rides, startTime, endTime)
     conn = psycopg2.connect(host=pgServer, database=pgDbName,
                                         user=pgUsername, password=pgPassword)
     cur = conn.cursor()
@@ -163,7 +161,7 @@ def queryRidesRich(startTime, endTime):
                         ON ride."rideId" = wp."rideId"
                         WHERE ride."startTime" BETWEEN '{2}' AND '{3}' AND ride."endTime" BETWEEN '{2}' AND '{3}'
                         GROUP BY ride."rideId") AS geo) AS feature_collection;
-          """.format(routesTable, snappedWpTable,
+          """.format(CibicResources.Postgres.Rides, CibicResources.Postgres.WaypointsSnapped,
                     startTime.astimezone().strftime("%Y-%m-%d %H:%M:%S%z"),
                     endTime.astimezone().strftime("%Y-%m-%d %H:%M:%S%z"))
     conn = psycopg2.connect(host=pgServer, database=pgDbName,

@@ -10,8 +10,6 @@ pgDbName = os.environ['ENV_VAR_POSTGRES_DB']
 pgUsername = os.environ['ENV_VAR_POSTGRES_USER']
 pgPassword = os.environ['ENV_VAR_POSTGRES_PASSWORD']
 pgServer = os.environ['ENV_VAR_POSTGRES_SERVER']
-routesTable = os.environ['ENV_VAR_POSTGRES_TABLE_ROUTES']
-waypointsTable = os.environ['ENV_VAR_POSTGRES_TABLE_WPS']
 derivedDataReadyTopic = os.environ['ENV_SNS_DERIVED_DATA_READY']
 waypointsReadyTopic = os.environ['ENV_SNS_WAYPOINTS_READY']
 
@@ -173,7 +171,7 @@ def insertRide(cur, rideId, requestId, startZone, endZone):
                             ST_Buffer(ST_GeomFromText('{}',4326)::geography,
                                         {},'quad_segs=16')::geometry
                     )
-                    """.format(routesTable,
+                    """.format(CibicResources.Postgres.Rides,
                                 wktPoint(cLat1, cLon1), rad1,
                                 wktPoint(cLat2, cLon2), rad2)
     cur.execute(sqlInsertRide, (rideId, requestId, startZone[0]['timestamp'], endZone[-1]['timestamp']))
@@ -206,7 +204,7 @@ def insertRawWaypoints(cur, rideId, requestId, waypoints):
     sql = """
             INSERT INTO {}
             VALUES %s
-          """.format(waypointsTable)
+          """.format(CibicResources.Postgres.WaypointsRaw)
     values = list((rideId, makeSqlPoint(wp['latitude'], wp['longitude']),
                     wp['timestamp'], wp['road_type'], wp['speed'], wp['distance'],
                     wp['speed_limit'], wp['originalIdx'], wp['zone'], requestId) for wp in waypoints)
