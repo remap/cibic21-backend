@@ -23,6 +23,7 @@ def lambda_handler(event, context):
     requestId = str(uuid.uuid4()) # generate request uuid
     userId = ''
     role = ''
+    surveyId = ''
     requestProcessed = False
     surveyBody = ''
     requestReply = {}
@@ -32,12 +33,12 @@ def lambda_handler(event, context):
         print('surveymonkey-webhook event data: ' + str(event))
 
         if 'event_type' in event and event['event_type'] == 'response_completed':
-            survey_id = event['resources']['survey_id']
+            surveyId = event['resources']['survey_id']
             response_id = event['object_id']
 
-            print('Fetching survey_id {}, response_id {}'.format(survey_id, response_id))
+            print('Fetching surveyId {}, response_id {}'.format(surveyId, response_id))
             response = requests.get(
-                'https://api.surveymonkey.net/v3/surveys/' + survey_id +
+                'https://api.surveymonkey.net/v3/surveys/' + surveyId +
                 '/responses/' + response_id + '/details',
                 headers = {'Authorization': 'bearer ' + bearer_token})
             if response.status_code/100 == 2:
@@ -68,6 +69,7 @@ def lambda_handler(event, context):
         'requestId': requestId,
         'userId': userId,
         'role': role,
+        'surveyId': surveyId,
         'body' : json.dumps(surveyBody),
         'processed' : requestProcessed,
         'error' : str(err)
