@@ -34,7 +34,7 @@ def lambda_handler(event, context):
                             )
                             # The combined key is supposed to be unique, so assume one item.
                             if (dynamodbResponse['Count'] == 1):
-                                item = json.loads(dynamodbResponse['Items'][0])
+                                item = dynamodbResponse['Items'][0]
                                 if 'request' in item and 'body' in item['request']:
                                     body = json.loads(item['request']['body'])
                                     print('Moderating journal body for userId {}, sortKey {}, body {}'
@@ -46,18 +46,12 @@ def lambda_handler(event, context):
                                 # Store the possibly moderated item in DynamoDB.
                                 filteredJournalingTable.put_item(Item = item)
                             else:
-                                print("WARNING: No expected 1 item in unfilteredJournalingTable for userId {}, sortKey {}"
+                                print('WARNING: No expected 1 item in unfilteredJournalingTable for userId {}, sortKey {}'
                                   .format(userId, sortKey))
                         else:
-                            print("WARNING: No userId/sortKey in message " + str(combinedKey))
+                            print('WARNING: No userId/sortKey in message {}'.format(combinedKey))
         else:
             return malformedMessageReply()
-
-        #rekognitionResponse = rekognition.detect_moderation_labels(
-        #    Image = { 'Bytes': base64.b64decode(TestImage) }
-        #)
-        #print('rekognition response:')
-        #print(rekognitionResponse)
     except:
         err = reportError()
         print('caught exception:', sys.exc_info()[0])
@@ -67,7 +61,8 @@ def lambda_handler(event, context):
 
 def moderateJournalEntry(body):
     """
-    Modify the body of the entry in place by removing moderated content.
+    Modify the body of the entry in place by redacting moderated text and
+    removing moderated images.
 
     :param body: The journal body which has been converted from JSON into a dict.
     """
@@ -92,6 +87,22 @@ def moderateJournalEntry(body):
             )
             if 'Entities' in comprehendResponse:
                 body[fieldName] = redact(text, comprehendResponse['Entities'])
+
+    fieldName = 'image'
+    if fieldName in body and body[fieldName] != None and body[fieldName] != "":
+        imagePath = body[fieldName]
+
+        # Check the image directly in S3.
+        response = rekognition.detect_moderation_labels(
+            Image = { 'S3Object': {
+              'Bucket': CibicResources.S3Bucket.JournalingImages,
+              'Name': imagePath
+            }}
+        )
+        if 'ModerationLabels' in response and response['ModerationLabels'] != []:
+            labels = response['ModerationLabels']
+            print('Removing image "{}". ModerationLabels: {}'.format(imagePath, labels))
+            body[fieldName] = None
 
 def redact(text, entities):
     """
