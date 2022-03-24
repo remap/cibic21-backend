@@ -21,7 +21,8 @@ def lambda_handler(event, context):
                 image = base64.b64decode(imageBase64)
 
                 print('Saving in S3 bucket: file size ' + str(len(image)) + ', name: ' + name)
-                s3.put_object(Bucket='cibic21-s3-journaling-images', Key=name, Body=image)
+                s3.put_object(Bucket=CibicResources.S3Bucket.JournalingImages,
+                              Key=name, Body=image)
 
                 # Give the response to enable CORS.
                 requestReply = {

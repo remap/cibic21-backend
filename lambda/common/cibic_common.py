@@ -30,8 +30,8 @@ class CibicResources():
         WaypointsSnapped = 'cibic21_waypoints_snapped'
         UserEnrollments = 'cibic21_user_enrollments'
 
-    # class S3Bucket():
-        # SurveyMedia = # TBD
+    class S3Bucket():
+        JournalingImages = 'cibic21-s3-journaling-images'
 
     # class Sns():
         # EndpointRequestProcessed = # TBD
