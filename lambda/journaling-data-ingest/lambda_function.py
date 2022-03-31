@@ -5,6 +5,11 @@ from common.cibic_common import *
 from datetime import datetime, timezone
 
 dynamoDbResource = boto3.resource('dynamodb')
+lambdaClient = boto3.client('lambda')
+
+# resource ARNs must be defined as lambda environment variables
+# see https://docs.aws.amazon.com/lambda/latest/dg/configuration-envvars.html#configuration-envvars-config
+journalingModerationProcArn = os.environ['ENV_LAMBDA_ARN_JOURNALING_MODERATION']
 
 def lambda_handler(event, context):
     requestsTable = dynamoDbResource.Table(CibicResources.DynamoDB.JournalingRequests)
@@ -17,6 +22,7 @@ def lambda_handler(event, context):
     requestBody = ''
     requestReply = {}
     err = ''
+    stage = ''
 
     try:
         print ('event data ' + str(event))
@@ -52,5 +58,19 @@ def lambda_handler(event, context):
         'processed' : requestProcessed,
         'error' : str(err)
     })
+
+    if requestProcessed:
+        # Async-invoke journaling moderation Lambda.
+        result = lambdaClient.invoke(
+          FunctionName = journalingModerationProcArn,
+          InvocationType = 'Event',
+          Payload = json.dumps({
+            'timestamp': requestTimestamp,
+            'requestId': requestId,
+            'stage': stage,
+            'body': requestBody
+          })
+        )
+        print('Journaling moderation async-invoke reply status code ' + str(result['StatusCode']))
 
     return requestReply
