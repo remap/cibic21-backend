@@ -40,11 +40,11 @@ def lambda_handler(event, context):
 
             for enrollment in enrollments:
                 # Get required fields.
-                if not 'id' in enrollment:
-                    print('Warning: No user id for enrollment: ' + str(enrollment))
+                if not 'username' in enrollment:
+                    print('Warning: No username for enrollment: ' + str(enrollment))
                     continue
-                userId = enrollment['id']
-                print('Processing enrollment for userId ' + userId)
+                username = enrollment['username']
+                print('Processing enrollment for username ' + username)
 
                 role = None
                 if 'role' in enrollment:
@@ -56,7 +56,7 @@ def lambda_handler(event, context):
                 if workInfo == None:
                     continue
 
-                insertEnrollment(cur, userId, role, homeInfo, workInfo)
+                insertEnrollment(cur, username, role, homeInfo, workInfo)
 
             conn.commit()
             cur.close()
@@ -110,18 +110,18 @@ def getLocationInfo(enrollment, locationName):
       'geofenceRadius': geofenceRadius
     }
 
-def insertEnrollment(cur, userId, role, homeInfo, workInfo):
+def insertEnrollment(cur, username, role, homeInfo, workInfo):
     """
     Insert the values into the user enrollments table. homeInfo and workInfo are
     from getLocationInfo.
     """
     sql = """
-INSERT INTO {} ("userId", "role",
+INSERT INTO {} ("username", "role",
                 "homeAddressText", "homeFullAddress", "homeZipCode", "homeCoordinate", "homeGeofenceRadius",
                 "workAddressText", "workFullAddress", "workZipCode", "workCoordinate", "workGeofenceRadius")
             VALUES %s
           """.format(CibicResources.Postgres.UserEnrollments)
-    values = [(userId, role,
+    values = [(username, role,
       homeInfo['addressText'], homeInfo['fullAddress'], homeInfo['zipCode'], homeInfo['coordinate'], homeInfo['geofenceRadius'],
       workInfo['addressText'], workInfo['fullAddress'], workInfo['zipCode'], workInfo['coordinate'], workInfo['geofenceRadius'])]
     extras.execute_values(cur, sql, values)
