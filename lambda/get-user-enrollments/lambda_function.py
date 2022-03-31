@@ -1,3 +1,7 @@
+# This Lambda queries the upstream endpoint to get the user enrollments, and to
+# save a processed version in a Postgres table. (The Lambda for the API to query
+# the Posgres table and return the user enrollments is query-user-enrollments.)
+
 from common.cibic_common import *
 import os
 import psycopg2
