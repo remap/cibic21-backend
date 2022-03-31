@@ -18,9 +18,9 @@ class CibicResources():
         # By default, table names are for the prod stage. For the dev stage, append "-dev".
         EndpointRequests = 'cibic21-dynamodb-api-endpoint-requests'
         JournalingRequests = 'cibic21-dynamodb-api-journaling-requests'
+        ModeratedJournalingRequests = 'cibic21-dynamodb-moderated-journaling-requests'
         RideData = 'cibic21-dynamodb-ride-data'
         FilteredJournalingData = 'cibic21-dynamodb-exhibit-filtered-journaling-data'
-        UnfilteredJournalingData = 'cibic21-dynamodb-exhibit-unfiltered-journaling-data'
         RawSurveyResponses = 'cibic21-dynamodb-raw-survey-responses'
 
     class Postgres():

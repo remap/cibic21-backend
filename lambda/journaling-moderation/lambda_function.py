@@ -8,56 +8,56 @@ rekognition = boto3.client('rekognition')
 # Comprehend is not available in us-west-1, so use another region.
 comprehend = boto3.client('comprehend', region_name='us-west-2')
 
-snsTopicArn = os.environ['ENV_VAR_SNS_TOPIC_JOURNALING_DATA_READY']
-
 def lambda_handler(event, context):
-    unfilteredJournalingTable = dynamoDbResource.Table(
-      CibicResources.DynamoDB.UnfilteredJournalingData)
-    filteredJournalingTable = dynamoDbResource.Table(
-      CibicResources.DynamoDB.FilteredJournalingData)
+    moderatedRequestsTable = dynamoDbResource.Table(CibicResources.DynamoDB.ModeratedJournalingRequests)
+    timestamp = ''
+    requestId = ''
+    userId = ''
+    role = ''
+    body = ''
+    processed = False
+    requestReply = {}
+    err = ''
 
     try:
         print ('event data ' + str(event))
+        stage = event['stage']
 
-        if 'Records' in event:
-            for rec in event['Records']:
-                if 'Sns' in rec and rec['Sns']['TopicArn'] == snsTopicArn:
-                    # Get each combined userId/sortKey sent by the processing Lambda.
-                    combinedKeys = json.loads(rec['Sns']['Message'])
-                    for combinedKey in combinedKeys:
-                        if 'userId' in combinedKey and 'sortKey' in combinedKey:
-                            userId = combinedKey['userId']
-                            sortKey = combinedKey['sortKey']
-                            dynamodbResponse = unfilteredJournalingTable.query(
-                              KeyConditionExpression=Key('userId').eq(userId)
-                                                   & Key('sortKey').eq(sortKey)
-                            )
-                            # The combined key is supposed to be unique, so assume one item.
-                            if (dynamodbResponse['Count'] == 1):
-                                item = dynamodbResponse['Items'][0]
-                                if 'request' in item and 'body' in item['request']:
-                                    body = json.loads(item['request']['body'])
-                                    print('Moderating journal body for userId {}, sortKey {}, body {}'
-                                      .format(userId, sortKey, body))
-                                    moderateJournalEntry(body)
-                                    # Replace the body in the item.
-                                    item['request']['body'] = json.dumps(body)
+        if 'timestamp' in event and 'requestId' in event and 'body' in event:
+            timestamp = event['timestamp']
+            requestId = event['requestId']
+            body = event['body']
+            if 'userId' in body:
+                userId = body['userId']
+            if 'role' in body:
+                role = body['role']
 
-                                # Store the possibly moderated item in DynamoDB.
-                                filteredJournalingTable.put_item(Item = item)
-                            else:
-                                print('WARNING: No expected 1 item in unfilteredJournalingTable for userId {}, sortKey {}'
-                                  .format(userId, sortKey))
-                        else:
-                            print('WARNING: No userId/sortKey in message {}'.format(combinedKey))
+            print('Moderating journal body for requestId {}, userId {}, role {}, body {}'
+              .format(requestId, userId, role, body))
+            moderateJournalEntry(body)
+
+            processed = True
+            requestReply = processedReply()
         else:
-            return malformedMessageReply()
+            requestReply = malformedMessageReply()
     except:
         err = reportError()
         print('caught exception:', sys.exc_info()[0])
-        return lambdaReply(420, str(err))
+        requestReply = lambdaReply(420, str(err))
 
-    return processedReply()
+    if timestamp != '':
+        # Store request data in moderated DynamoDB table.
+        moderatedRequestsTable.put_item(Item = {
+            'timestamp' : timestamp,
+            'requestId': requestId,
+            'userId': userId,
+            'role': role,
+            'body' : json.dumps(body),
+            'processed' : processed,
+            'error' : str(err)
+        })
+
+    return requestReply
 
 def moderateJournalEntry(body):
     """
@@ -89,6 +89,7 @@ def moderateJournalEntry(body):
                 body[fieldName] = redact(text, comprehendResponse['Entities'])
 
     fieldName = 'image'
+    imageModerationLabels = None
     if fieldName in body and body[fieldName] != None and body[fieldName] != "":
         imagePath = body[fieldName]
 
@@ -100,9 +101,9 @@ def moderateJournalEntry(body):
             }}
         )
         if 'ModerationLabels' in response and response['ModerationLabels'] != []:
-            labels = response['ModerationLabels']
-            print('Removing image "{}". ModerationLabels: {}'.format(imagePath, labels))
-            body[fieldName] = None
+            imageModerationLabels = response['ModerationLabels']
+            print('Image "{}". ModerationLabels: {}'.format(imagePath, imageModerationLabels))
+    body['imageModerationLabels'] = imageModerationLabels
 
 def redact(text, entities):
     """
