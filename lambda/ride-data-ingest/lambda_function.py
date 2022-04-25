@@ -15,7 +15,7 @@ waypointsProcArn = os.environ['ENV_LAMBDA_ARN_WP_PROC']
 
 def lambda_handler(event, context):
     requestsTable = dynamoDbResource.Table(CibicResources.DynamoDB.EndpointRequests)
-    requestTimestamp = datetime.now().astimezone().strftime("%m/%d/%Y %H:%M:%S.%f UTC%z")
+    requestTimestamp = datetime.now().astimezone().isoformat()
     requestId = str(uuid.uuid4()) # generate request uuid
     requestProcessed = False
     requestBody = ''

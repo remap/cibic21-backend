@@ -14,7 +14,7 @@ journalingModerationProcArn = os.environ['ENV_LAMBDA_ARN_JOURNALING_MODERATION']
 def lambda_handler(event, context):
     requestsTable = dynamoDbResource.Table(CibicResources.DynamoDB.JournalingRequests)
     # Make sure it is UTC with the year first so we can sort on it.
-    requestTimestamp = datetime.now().astimezone(tz=timezone.utc).strftime("%Y/%m/%d %H:%M:%S.%f UTC%z")
+    requestTimestamp = datetime.now().astimezone(tz=timezone.utc).isoformat()
     requestId = str(uuid.uuid4()) # generate request uuid
     userId = ''
     role = ''
