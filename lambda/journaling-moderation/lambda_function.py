@@ -67,26 +67,31 @@ def moderateJournalEntry(body):
     :param body: The journal body which has been converted from JSON into a dict.
     """
     # TODO: What are the important journal entry fields?
-    fieldName = 'Bio'
+    fieldName = 'answers'
     if fieldName in body:
-        text = body[fieldName]
+        # Expect an array of values. Moderate any string.
+        values = body[fieldName]
+        for i in range(len(values)):
+            text = values[i]
+            if not type(text) is str:
+                continue
 
-        # Check if the language is English.
-        languageCode = ""
-        detectLanguageResponse = comprehend.detect_dominant_language(
-          Text = text
-        )
-        if 'Languages' in detectLanguageResponse:
-            languageCode = detectLanguageResponse['Languages'][0]['LanguageCode']
-
-        if languageCode == "en":
-            # Use Detect PII Entities, which is only available in English.
-            comprehendResponse = comprehend.detect_pii_entities(
-              LanguageCode = languageCode,
+            # Check if the language is English.
+            languageCode = ""
+            detectLanguageResponse = comprehend.detect_dominant_language(
               Text = text
             )
-            if 'Entities' in comprehendResponse:
-                body[fieldName] = redact(text, comprehendResponse['Entities'])
+            if 'Languages' in detectLanguageResponse:
+                languageCode = detectLanguageResponse['Languages'][0]['LanguageCode']
+
+            if languageCode == "en":
+                # Use Detect PII Entities, which is only available in English.
+                comprehendResponse = comprehend.detect_pii_entities(
+                  LanguageCode = languageCode,
+                  Text = text
+                )
+                if 'Entities' in comprehendResponse:
+                    values[i] = redact(text, comprehendResponse['Entities'])
 
     fieldName = 'image'
     imageModerationLabels = None
