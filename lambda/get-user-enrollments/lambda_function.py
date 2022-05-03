@@ -1,6 +1,7 @@
 # This Lambda queries the upstream endpoint to get the user enrollments, and to
 # save a processed version in a Postgres table. (The Lambda for the API to query
 # the Posgres table and return the user enrollments is query-user-enrollments.)
+# This Lmabda has a trigger to run periodically (i.e. each hour).
 
 from common.cibic_common import *
 import os
