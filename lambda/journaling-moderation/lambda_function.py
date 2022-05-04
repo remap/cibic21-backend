@@ -1,12 +1,15 @@
-import base64
+import time
 import boto3
-from boto3.dynamodb.conditions import Key
+from botocore.errorfactory import ClientError
 from common.cibic_common import *
 
 dynamoDbResource = boto3.resource('dynamodb')
+s3 = boto3.client('s3')
 rekognition = boto3.client('rekognition')
 # Comprehend is not available in us-west-1, so use another region.
 comprehend = boto3.client('comprehend', region_name='us-west-2')
+
+imageUploadTimeoutSeconds = os.environ['ENV_LAMBDA_IMAGE_UPLOAD_TIMEOUT_SECONDS']
 
 def lambda_handler(event, context):
     moderatedRequestsTable = dynamoDbResource.Table(CibicResources.DynamoDB.ModeratedJournalingRequests)
@@ -98,16 +101,23 @@ def moderateJournalEntry(body):
     if fieldName in body and body[fieldName] != None and body[fieldName] != "":
         imagePath = body[fieldName]
 
-        # Check the image directly in S3.
-        response = rekognition.detect_moderation_labels(
-            Image = { 'S3Object': {
-              'Bucket': CibicResources.S3Bucket.JournalingImages,
-              'Name': imagePath
-            }}
-        )
-        if 'ModerationLabels' in response and response['ModerationLabels'] != []:
-            imageModerationLabels = response['ModerationLabels']
-            print('Image "{}". ModerationLabels: {}'.format(imagePath, imageModerationLabels))
+        if not s3HasFile(CibicResources.S3Bucket.JournalingImages, imagePath,
+                         imageUploadTimeoutSeconds):
+            print('Error: After ' + str(imageUploadTimeoutSeconds) +
+              ' second timeout, cannot find S3 journal image: ' + imagePath)
+            # Leave 'imageModerationLabels' as null, meaning "don't know".
+        else:
+            # Check the image directly in S3.
+            response = rekognition.detect_moderation_labels(
+                Image = { 'S3Object': {
+                  'Bucket': CibicResources.S3Bucket.JournalingImages,
+                  'Name': imagePath
+                }}
+            )
+            if 'ModerationLabels' in response:
+                # This may be the empty list.
+                imageModerationLabels = response['ModerationLabels']
+                print('Image "{}". ModerationLabels: {}'.format(imagePath, imageModerationLabels))
     body['imageModerationLabels'] = imageModerationLabels
 
 def redact(text, entities):
@@ -134,3 +144,28 @@ def redact(text, entities):
         text = text[:beginOffset] + "*" * (endOffset - beginOffset) + text[endOffset:]
 
     return text
+
+def s3HasFile(bucket, key, timeoutSeconds):
+    """
+    Repeatedly check if the S3 bucket has the object with the key, up until the timeout.
+
+    :param bucket: The S3 bucket name.
+    :param key: The S3 object key.
+    :param timeoutSeconds: The timeout in seconds.
+    :return: True if the S3 object exists, False if the object is not found after
+      the timeout.
+    :rtype: bool
+    """
+    startTime = time.perf_counter()
+    while time.perf_counter() - startTime < timeoutSeconds:
+        try:
+            # Get the object's metadata (check if it exists).
+            s3.head_object(Bucket=bucket, Key=key)
+            return True
+        except ClientError:
+            # Object is not found (or other error). Keep trying.
+            pass
+
+        time.sleep(1)
+
+    return False
