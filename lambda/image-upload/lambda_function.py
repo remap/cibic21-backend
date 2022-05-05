@@ -1,3 +1,5 @@
+import os
+import mimetypes
 import boto3
 import base64
 from common.cibic_common import *
@@ -5,6 +7,7 @@ from common.cibic_common import *
 s3 = boto3.client('s3')
 
 def lambda_handler(event, context):
+    mimetypes.init()
     requestReply = {}
 
     try:
@@ -20,9 +23,14 @@ def lambda_handler(event, context):
                 imageBase64 = requestBody['file']
                 image = base64.b64decode(imageBase64)
 
+                # Get the ContentType for the filename extension.
+                _, extension = os.path.splitext(name)
                 contentType= 'binary/octet-stream'
-                if name.endswith(".jpg") or name.endswith(".jpeg"):
-                    contentType = 'image/jpeg'
+                try:
+                    contentType = mimetypes.types_map[extension]
+                except:
+                    # File extension not recognized.
+                    pass
 
                 print('Saving in S3 bucket: file size ' + str(len(image)) + ', name: ' + name)
                 s3.put_object(Bucket=CibicResources.S3Bucket.JournalingImages,
