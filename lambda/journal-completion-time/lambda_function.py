@@ -22,6 +22,7 @@ def lambda_handler(event, context):
         response = journalsTable.scan(
           FilterExpression = Attr('userId').eq(userId) &
                              Attr('role').eq(role) &
+                             Attr('type').eq('reflection') &
                              Attr('processed').eq(True),
           # Limit each item to only the timestamp instead of fetching the entire journal entry.
           # We have to use ExpressionAttributeNames since timestamp is a reserved keyword.
