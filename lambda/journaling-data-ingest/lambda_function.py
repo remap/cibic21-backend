@@ -18,6 +18,7 @@ def lambda_handler(event, context):
     requestId = str(uuid.uuid4()) # generate request uuid
     userId = ''
     role = ''
+    journalType = ''
     requestProcessed = False
     requestBody = ''
     requestReply = {}
@@ -35,6 +36,8 @@ def lambda_handler(event, context):
             userId = requestBody['userId']
         if 'role' in requestBody:
             role = requestBody['role']
+        if 'type' in requestBody:
+            journalType = requestBody['type']
 
         requestProcessed = True
         # Give the response to enable CORS.
@@ -54,6 +57,7 @@ def lambda_handler(event, context):
         'requestId': requestId,
         'userId': userId,
         'role': role,
+        'type': journalType,
         'body' : json.dumps(requestBody),
         'processed' : requestProcessed,
         'error' : str(err)
