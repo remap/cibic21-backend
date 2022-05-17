@@ -21,7 +21,7 @@ def lambda_handler(event, context):
         cur = conn.cursor()
 
         sql = """
-          SELECT "username", "role",
+          SELECT "username", "role", "outwardFlowName", "returnFlowName",
             "homeAddressText", "homeFullAddress", "homeZipCode", "homeCoordinate", "homeGeofenceRadius",
             "workAddressText", "workFullAddress", "workZipCode", "workCoordinate", "workGeofenceRadius"
           FROM {}
@@ -33,19 +33,21 @@ def lambda_handler(event, context):
             enrollmentsResponse.append({
               'username': enrollment[0],
               'role': enrollment[1],
+              'outwardFlowName': enrollment[2],
+              'returnFlowName': enrollment[3],
               'home': {
-                'addressText': enrollment[2],
-                'fullAddress': enrollment[3],
-                'zipCode': enrollment[4],
-                'coordinate': enrollment[5],
-                'geofenceRadius': enrollment[6]
+                'addressText': enrollment[4],
+                'fullAddress': enrollment[5],
+                'zipCode': enrollment[6],
+                'coordinate': enrollment[7],
+                'geofenceRadius': enrollment[8]
               },
               'work': {
-                'addressText': enrollment[7],
-                'fullAddress': enrollment[8],
-                'zipCode': enrollment[9],
-                'coordinate': enrollment[10],
-                'geofenceRadius': enrollment[11]
+                'addressText': enrollment[9],
+                'fullAddress': enrollment[10],
+                'zipCode': enrollment[11],
+                'coordinate': enrollment[12],
+                'geofenceRadius': enrollment[13]
               }
             })
 

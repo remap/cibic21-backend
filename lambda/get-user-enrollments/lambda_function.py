@@ -57,11 +57,18 @@ def lambda_handler(event, context):
                 homeInfo = getLocationInfo(enrollment, 'homeAddress')
                 if homeInfo == None:
                     continue
+                outwardFlowName = None
+                if 'outwardTripFlow' in enrollment and 'name' in enrollment['outwardTripFlow']:
+                    outwardFlowName = enrollment['outwardTripFlow']['name']
+                returnFlowName = None
+                if 'returnTripFlow' in enrollment and 'name' in enrollment['returnTripFlow']:
+                    returnFlowName = enrollment['returnTripFlow']['name']
                 workInfo = getLocationInfo(enrollment, 'workAddress')
                 if workInfo == None:
                     continue
 
-                insertEnrollment(cur, username, role, homeInfo, workInfo)
+                insertEnrollment(cur, username, role, outwardFlowName, returnFlowName,
+                  homeInfo, workInfo)
 
             conn.commit()
             cur.close()
@@ -82,7 +89,7 @@ def getLocationInfo(enrollment, locationName):
     """
     Return a dict of info for enrollment[locationName] or None if missing fields.
     """
-    if not 'homeAddress' in enrollment:
+    if not locationName in enrollment:
         print('Warning: No ' + locationName + '. Skipping')
         return None
 
@@ -115,18 +122,19 @@ def getLocationInfo(enrollment, locationName):
       'geofenceRadius': geofenceRadius
     }
 
-def insertEnrollment(cur, username, role, homeInfo, workInfo):
+def insertEnrollment(cur, username, role, outwardFlowName, returnFlowName,
+      homeInfo, workInfo):
     """
     Insert the values into the user enrollments table. homeInfo and workInfo are
     from getLocationInfo.
     """
     sql = """
-INSERT INTO {} ("username", "role",
+INSERT INTO {} ("username", "role", "outwardFlowName", "returnFlowName",
                 "homeAddressText", "homeFullAddress", "homeZipCode", "homeCoordinate", "homeGeofenceRadius",
                 "workAddressText", "workFullAddress", "workZipCode", "workCoordinate", "workGeofenceRadius")
             VALUES %s
           """.format(CibicResources.Postgres.UserEnrollments)
-    values = [(username, role,
+    values = [(username, role, outwardFlowName, returnFlowName,
       homeInfo['addressText'], homeInfo['fullAddress'], homeInfo['zipCode'], homeInfo['coordinate'], homeInfo['geofenceRadius'],
       workInfo['addressText'], workInfo['fullAddress'], workInfo['zipCode'], workInfo['coordinate'], workInfo['geofenceRadius'])]
     extras.execute_values(cur, sql, values)
