@@ -51,23 +51,11 @@ def lambda_handler(event, context):
                 username = enrollment['username']
                 print('Processing enrollment for username ' + username)
 
-                role = None
-                if 'role' in enrollment:
-                    role = enrollment['role']
-                outwardFlowId = None
-                outwardFlowName = None
-                if 'outwardTripFlow' in enrollment:
-                    if 'id' in enrollment['outwardTripFlow']:
-                        outwardFlowId = enrollment['outwardTripFlow']['id']
-                    if 'name' in enrollment['outwardTripFlow']:
-                        outwardFlowName = enrollment['outwardTripFlow']['name']
-                returnFlowId = None
-                returnFlowName = None
-                if 'returnTripFlow' in enrollment:
-                    if 'id' in enrollment['returnTripFlow']:
-                        returnFlowId = enrollment['returnTripFlow']['id']
-                    if 'name' in enrollment['returnTripFlow']:
-                        returnFlowName = enrollment['returnTripFlow']['name']
+                role = enrollment.get('role')
+                outwardFlowId = enrollment.get('outwardTripFlow', {}).get('id')
+                outwardFlowName = enrollment.get('outwardTripFlow', {}).get('name')
+                returnFlowId = enrollment.get('returnTripFlow', {}).get('id')
+                returnFlowName = enrollment.get('returnTripFlow', {}).get('name')
 
                 homeInfo = getLocationInfo(enrollment, 'homeAddress')
                 if homeInfo == None:
@@ -109,16 +97,10 @@ def getLocationInfo(enrollment, locationName):
     coordinate = makeSqlPoint(location['lat'], location['long'])
 
     # Get optional fields.
-    addressText = None
-    fullAddress = None
-    zipCode = None
+    addressText = location.get('text')
+    fullAddress = location.get('fullAddress')
+    zipCode = location.get('zipCode')
     geofenceRadius = None
-    if 'text' in location:
-        addressText = location['text']
-    if 'fullAddress' in location:
-        fullAddress = location['fullAddress']
-    if 'zipCode' in location:
-        zipCode = location['zipCode']
     if 'text' in location and (type(location['geofenceRadius']) == int or
                                type(location['geofenceRadius']) == float):
         geofenceRadius = float(location['geofenceRadius'])
