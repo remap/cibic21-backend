@@ -21,7 +21,7 @@ def lambda_handler(event, context):
         cur = conn.cursor()
 
         sql = """
-          SELECT "username", "role", "outwardFlowName", "returnFlowName",
+          SELECT "username", "role", "outwardFlowId", "outwardFlowName", "returnFlowId", "returnFlowName",
             "homeAddressText", "homeFullAddress", "homeZipCode", "homeCoordinate", "homeGeofenceRadius",
             "workAddressText", "workFullAddress", "workZipCode", "workCoordinate", "workGeofenceRadius"
           FROM {}
@@ -33,21 +33,23 @@ def lambda_handler(event, context):
             enrollmentsResponse.append({
               'username': enrollment[0],
               'role': enrollment[1],
-              'outwardFlowName': enrollment[2],
-              'returnFlowName': enrollment[3],
+              'outwardFlowId': enrollment[2],
+              'outwardFlowName': enrollment[3],
+              'returnFlowId': enrollment[4],
+              'returnFlowName': enrollment[5],
               'home': {
-                'addressText': enrollment[4],
-                'fullAddress': enrollment[5],
-                'zipCode': enrollment[6],
-                'coordinate': enrollment[7],
-                'geofenceRadius': enrollment[8]
+                'addressText': enrollment[6],
+                'fullAddress': enrollment[7],
+                'zipCode': enrollment[8],
+                'coordinate': enrollment[9],
+                'geofenceRadius': enrollment[10]
               },
               'work': {
-                'addressText': enrollment[9],
-                'fullAddress': enrollment[10],
-                'zipCode': enrollment[11],
-                'coordinate': enrollment[12],
-                'geofenceRadius': enrollment[13]
+                'addressText': enrollment[11],
+                'fullAddress': enrollment[12],
+                'zipCode': enrollment[13],
+                'coordinate': enrollment[14],
+                'geofenceRadius': enrollment[15]
               }
             })
 
