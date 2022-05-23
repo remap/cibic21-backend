@@ -1,7 +1,7 @@
 from common.cibic_common import *
 import os
 import psycopg2
-import arrow # for parsing arbitrary timestamps from URL request parameters
+from datetime import datetime
 import urllib
 
 pgDbName = os.environ['ENV_VAR_POSTGRES_DB']
@@ -101,8 +101,7 @@ def fetchRide(rideId):
 
 def parseDatetime(ss):
     try:
-        dt = arrow.get(urllib.parse.unquote(ss))
-        return dt.datetime
+        return datetime.fromisoformat(urllib.parse.unquote(ss))
     except:
         return None
 
