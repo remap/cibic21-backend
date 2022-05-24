@@ -104,9 +104,17 @@ def isRideDataValid(body):
 def makeRideData(body):
     # for example, throw out data that we don't need
     rideData = {
-        'id' : body['_id'],
+        'id' : body['id'],
         'flow': body['flow'],
         'startTime': body['startTime'],
         'endTime': body['endTime']
         }
+
+    if 'cibicUser' in body:
+        cibicUser = body['cibicUser']
+        if 'username' in cibicUser:
+           rideData['userId'] = cibicUser['username']
+        if 'role' in cibicUser:
+           rideData['role'] = cibicUser['role']
+
     return rideData
