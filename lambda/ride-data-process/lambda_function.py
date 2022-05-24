@@ -16,15 +16,17 @@ def lambda_handler(event, context):
             rideData = event['data']
             rideDataTable.update_item(
                 Key = { 'rideId': rideData['id']},
-                UpdateExpression="SET requestId=:rid, userId=:uid, cibicUser=:cuser, flow=:flowData, startTime=:start, endTime=:end",
+                UpdateExpression="SET requestId=:rid, userId=:uid, #r=:role1, flow=:flowData, startTime=:start, endTime=:end",
                 ExpressionAttributeValues={
                     ':rid': event['rid'],
-                    ':uid' : rideData['username'] if 'username' in rideData else None,
-                    ':cuser': rideData['cibicUser'] if 'cibicUser' in rideData else None,
-                    ':flowData': rideData['flow'] if 'flow' in rideData else None,
-                    ':start': rideData['startTime'] if 'startTime' in rideData else None,
-                    ':end': rideData['endTime'] if 'endTime' in rideData else None
+                    ':uid' : rideData.get('userId'),
+                    ':role1': rideData.get('role'),
+                    ':flowData': rideData.get('flow'),
+                    ':start': rideData.get('startTime'),
+                    ':end': rideData.get('endTime')
                 },
+                # We have to use ExpressionAttributeNames since role is a reserved keyword.
+                ExpressionAttributeNames = {'#r': 'role'},
                 ReturnValues="UPDATED_NEW"
             )
         else:
