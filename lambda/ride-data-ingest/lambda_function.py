@@ -110,6 +110,12 @@ def makeRideData(body):
         'endTime': body['endTime']
         }
 
+    # Change ISO time Z to make Python happy.
+    if rideData['startTime'].endswith('Z'):
+        rideData['startTime'] = rideData['startTime'][:-1] + '+00:00'
+    if rideData['endTime'].endswith('Z'):
+        rideData['endTime'] = rideData['endTime'][:-1] + '+00:00'
+
     if 'cibicUser' in body:
         cibicUser = body['cibicUser']
         if 'username' in cibicUser:
