@@ -48,13 +48,19 @@ def lambda_handler(event, context):
                 if not 'username' in enrollment:
                     print('Warning: No username for enrollment: ' + str(enrollment))
                     continue
-                username = enrollment['username']
-                print('Processing enrollment for username ' + username)
+                userId = enrollment['username']
+                print('Processing enrollment for userId ' + userId)
 
                 role = enrollment.get('role')
                 outwardFlowId = enrollment.get('outwardTripFlow', {}).get('id')
+                if outwardFlowId == None:
+                    # Still using the old key.
+                    outwardFlowId = enrollment.get('outwardTripFlow', {}).get('_id')
                 outwardFlowName = enrollment.get('outwardTripFlow', {}).get('name')
                 returnFlowId = enrollment.get('returnTripFlow', {}).get('id')
+                if returnFlowId == None:
+                    # Still using the old key.
+                    returnFlowId = enrollment.get('returnTripFlow', {}).get('_id')
                 returnFlowName = enrollment.get('returnTripFlow', {}).get('name')
 
                 homeInfo = getLocationInfo(enrollment, 'homeAddress')
@@ -64,7 +70,7 @@ def lambda_handler(event, context):
                 if workInfo == None:
                     continue
 
-                insertEnrollment(cur, username, role, outwardFlowId, outwardFlowName,
+                insertEnrollment(cur, userId, role, outwardFlowId, outwardFlowName,
                   returnFlowId, returnFlowName, homeInfo, workInfo)
 
             conn.commit()
@@ -113,19 +119,19 @@ def getLocationInfo(enrollment, locationName):
       'geofenceRadius': geofenceRadius
     }
 
-def insertEnrollment(cur, username, role, outwardFlowId, outwardFlowName,
+def insertEnrollment(cur, userId, role, outwardFlowId, outwardFlowName,
       returnFlowId, returnFlowName, homeInfo, workInfo):
     """
     Insert the values into the user enrollments table. homeInfo and workInfo are
     from getLocationInfo.
     """
     sql = """
-INSERT INTO {} ("username", "role", "outwardFlowId", "outwardFlowName", "returnFlowId", "returnFlowName",
+INSERT INTO {} ("userId", "role", "outwardFlowId", "outwardFlowName", "returnFlowId", "returnFlowName",
                 "homeAddressText", "homeFullAddress", "homeZipCode", "homeCoordinate", "homeGeofenceRadius",
                 "workAddressText", "workFullAddress", "workZipCode", "workCoordinate", "workGeofenceRadius")
             VALUES %s
           """.format(CibicResources.Postgres.UserEnrollments)
-    values = [(username, role, outwardFlowId, outwardFlowName, returnFlowId, returnFlowName,
+    values = [(userId, role, outwardFlowId, outwardFlowName, returnFlowId, returnFlowName,
       homeInfo['addressText'], homeInfo['fullAddress'], homeInfo['zipCode'], homeInfo['coordinate'], homeInfo['geofenceRadius'],
       workInfo['addressText'], workInfo['fullAddress'], workInfo['zipCode'], workInfo['coordinate'], workInfo['geofenceRadius'])]
     extras.execute_values(cur, sql, values)

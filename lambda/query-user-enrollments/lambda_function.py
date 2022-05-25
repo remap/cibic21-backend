@@ -21,7 +21,7 @@ def lambda_handler(event, context):
         cur = conn.cursor()
 
         sql = """
-          SELECT "username", "role", "outwardFlowId", "outwardFlowName", "returnFlowId", "returnFlowName",
+          SELECT "userId", "role", "outwardFlowId", "outwardFlowName", "returnFlowId", "returnFlowName",
             "homeAddressText", "homeFullAddress", "homeZipCode", "homeCoordinate", "homeGeofenceRadius",
             "workAddressText", "workFullAddress", "workZipCode", "workCoordinate", "workGeofenceRadius"
           FROM {}
@@ -31,7 +31,7 @@ def lambda_handler(event, context):
         enrollmentsResponse = []
         for enrollment in cur.fetchall():
             enrollmentsResponse.append({
-              'username': enrollment[0],
+              'userId': enrollment[0],
               'role': enrollment[1],
               'outwardFlowId': enrollment[2],
               'outwardFlowName': enrollment[3],
