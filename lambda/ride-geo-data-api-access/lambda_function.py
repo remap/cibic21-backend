@@ -109,7 +109,7 @@ def queryRidesSimple(startTime, endTime):
     sql = """
             SELECT ride."rideId"
             FROM {0} as ride
-            WHERE ride."startTime" BETWEEN '{1}' AND '{2}' AND ride."endTime" BETWEEN '{1}' AND '{2}'
+            WHERE ride."startTime" BETWEEN '{1}' AND '{2}'
           """.format(CibicResources.Postgres.Rides, startTime, endTime)
     conn = psycopg2.connect(host=pgServer, database=pgDbName,
                                         user=pgUsername, password=pgPassword)
@@ -158,7 +158,7 @@ def queryRidesRich(startTime, endTime):
                         FROM {0} AS ride
                         INNER JOIN {1} AS wp
                         ON ride."rideId" = wp."rideId"
-                        WHERE ride."startTime" BETWEEN '{2}' AND '{3}' AND ride."endTime" BETWEEN '{2}' AND '{3}'
+                        WHERE ride."startTime" BETWEEN '{2}' AND '{3}'
                         GROUP BY ride."rideId") AS geo) AS feature_collection;
           """.format(CibicResources.Postgres.Rides, CibicResources.Postgres.WaypointsSnapped,
                     startTime.astimezone().strftime("%Y-%m-%d %H:%M:%S%z"),
