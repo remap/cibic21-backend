@@ -70,7 +70,7 @@ def lambda_handler(event, context):
                                                         'rid': requestId,
                                                         'data':
                                                         {
-                                                            'id' : rideId,
+                                                            'rideData' : remapRideData,
                                                             'waypoints': waypointsData
                                                         }
                                                     })

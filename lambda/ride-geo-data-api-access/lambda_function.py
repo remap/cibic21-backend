@@ -55,7 +55,10 @@ def fetchRide(rideId):
                     'properties', json_build_object(
                                     'rideId', rid,
                                     'startTime', start_time,
-                                    'stopTime', stop_time
+                                    'stopTime', stop_time,
+                                    'userId', user_id,
+                                    'role', role,
+                                    'flow', flow
                                   )
                     )
             FROM (SELECT array[json_build_object(
@@ -70,13 +73,16 @@ def fetchRide(rideId):
                                 'type', 'Feature',
                                 'geometry', ST_AsGeoJSON(arr[3])::json)
                                ] AS feature_list,
-                               rid, start_time, stop_time
+                               rid, start_time, stop_time, user_id, role, flow
                   FROM (SELECT array[ride."startZone",
                                      ride."endZone",
                                      ST_MakeLine(array_agg(wp.coordinate::geometry ORDER BY "snapIdx"))] AS arr,
                                ride."rideId" AS rid,
                                ride."startTime" AS start_time,
-                               ride."endTime" AS stop_time
+                               ride."endTime" AS stop_time,
+                               ride."userId" AS user_id,
+                               ride."role" AS role,
+                               ride."flow" AS flow
                         FROM {} AS ride
                         INNER JOIN {} AS wp
                         ON ride."rideId" = wp."rideId"
@@ -133,7 +139,10 @@ def queryRidesRich(startTime, endTime):
                     'properties', json_build_object(
                                     'rideId', rid,
                                     'startTime', start_time,
-                                    'stopTime', stop_time
+                                    'stopTime', stop_time,
+                                    'userId', user_id,
+                                    'role', role,
+                                    'flow', flow
                                   )
                     )
             FROM (SELECT array[json_build_object(
@@ -148,13 +157,16 @@ def queryRidesRich(startTime, endTime):
                                 'type', 'Feature',
                                 'geometry', ST_AsGeoJSON(arr[3])::json)
                                ] AS feature_list,
-                               rid, start_time, stop_time
+                               rid, start_time, stop_time, user_id, role, flow
                   FROM (SELECT array[ride."startZone",
                                      ride."endZone",
                                      ST_MakeLine(array_agg(wp.coordinate::geometry ORDER BY "snapIdx"))] AS arr,
                                ride."rideId" AS rid,
                                ride."startTime" AS start_time,
-                               ride."endTime" AS stop_time
+                               ride."endTime" AS stop_time,
+                               ride."userId" AS user_id,
+                               ride."role" AS role,
+                               ride."flow" AS flow
                         FROM {0} AS ride
                         INNER JOIN {1} AS wp
                         ON ride."rideId" = wp."rideId"

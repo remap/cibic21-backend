@@ -17,15 +17,16 @@ waypointsReadyTopic = os.environ['ENV_SNS_WAYPOINTS_READY']
 # expected payload:
 # {
 #   'rid': "API-endpoint-request-id",
-#   'data': { 'id' : "rideId", 'waypoints' : <waypoints-data> }
+#   'data': { 'rideData' : {'id': "rideId"}, 'waypoints' : <waypoints-data> }
 # }
 def lambda_handler(event, context):
     try:
         if 'rid' in event and 'data' in event:
             requestId = event['rid']
             payload = event['data']
-            if 'id' in payload and 'waypoints' in payload:
-                rideId = payload['id']
+            if 'rideData' in payload and 'id' in payload['rideData'] and 'waypoints' in payload:
+                rideData = payload['rideData']
+                rideId = rideData['id']
                 waypoints = validateWaypoints(payload['waypoints'])
                 print ('API request {} process waypoints for ride {} ({} waypoints)'
                     .format(requestId, rideId, len(waypoints)))
@@ -48,7 +49,10 @@ def lambda_handler(event, context):
                 cur = conn.cursor()
 
                 # insert new ride
-                insertRide(cur, rideId, requestId, startZone, endZone)
+                userId = rideData.get('userId')
+                role = rideData.get('role')
+                flow = rideData.get('flow')
+                insertRide(cur, rideId, requestId, userId, role, flow, startZone, endZone)
                 # insert raw waypoints
                 insertRawWaypoints(cur, rideId, requestId, waypoints)
 
@@ -159,13 +163,13 @@ def splitWaypoints(radius, waypoints):
         return (startZone, endZone, mainZone)
     return ([],[],[])
 
-def insertRide(cur, rideId, requestId, startZone, endZone):
+def insertRide(cur, rideId, requestId, userId, role, flow, startZone, endZone):
     # generate start / end geometry
     cLat1, cLon1, rad1 = obfuscateWaypoints(startZone)
     cLat2, cLon2, rad2 = obfuscateWaypoints(endZone)
     sqlInsertRide = """
-                    INSERT INTO {}("rideId", "requestId", "startTime", "endTime", "startZone", "endZone")
-                    VALUES (%s, %s, %s, %s,
+                    INSERT INTO {}("rideId", "requestId", "startTime", "endTime", "userId", "role", "flow", "startZone", "endZone")
+                    VALUES (%s, %s, %s, %s, %s, %s, %s,
                             ST_Buffer(ST_GeomFromText('{}',4326)::geography,
                                         {},'quad_segs=16')::geometry,
                             ST_Buffer(ST_GeomFromText('{}',4326)::geography,
@@ -174,7 +178,7 @@ def insertRide(cur, rideId, requestId, startZone, endZone):
                     """.format(CibicResources.Postgres.Rides,
                                 wktPoint(cLat1, cLon1), rad1,
                                 wktPoint(cLat2, cLon2), rad2)
-    cur.execute(sqlInsertRide, (rideId, requestId, startZone[0]['timestamp'], endZone[-1]['timestamp']))
+    cur.execute(sqlInsertRide, (rideId, requestId, startZone[0]['timestamp'], endZone[-1]['timestamp'], userId, role, flow))
 
 def obfuscateWaypoints(waypoints):
     centerLat = 0
