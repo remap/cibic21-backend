@@ -84,7 +84,7 @@ def fetchRide(rideId):
                                ride."role" AS role,
                                ride."flow" AS flow
                         FROM {} AS ride
-                        INNER JOIN {} AS wp
+                        LEFT JOIN {} AS wp
                         ON ride."rideId" = wp."rideId"
                         WHERE ride."rideId" = '{}'
                         GROUP BY ride."rideId") AS geo) AS feature_collection;
@@ -168,10 +168,11 @@ def queryRidesRich(startTime, endTime):
                                ride."role" AS role,
                                ride."flow" AS flow
                         FROM {0} AS ride
-                        INNER JOIN {1} AS wp
+                        LEFT JOIN {1} AS wp
                         ON ride."rideId" = wp."rideId"
                         WHERE ride."startTime" BETWEEN '{2}' AND '{3}'
-                        GROUP BY ride."rideId") AS geo) AS feature_collection;
+                        GROUP BY ride."rideId"
+						            ORDER BY ride."startTime") AS geo) AS feature_collection;
           """.format(CibicResources.Postgres.Rides, CibicResources.Postgres.WaypointsSnapped,
                     startTime.astimezone().strftime("%Y-%m-%d %H:%M:%S%z"),
                     endTime.astimezone().strftime("%Y-%m-%d %H:%M:%S%z"))
