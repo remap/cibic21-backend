@@ -49,6 +49,7 @@ def lambda_handler(event, context):
 
 def fetchRide(rideId):
     sql = """
+            SET TIME ZONE 'America/Los_Angeles';
             SELECT json_build_object(
                     'type', 'FeatureCollection',
                     'features', array_to_json(feature_list),
@@ -133,6 +134,7 @@ def queryRidesSimple(startTime, endTime):
 
 def queryRidesRich(startTime, endTime):
     sql = """
+            SET TIME ZONE 'America/Los_Angeles';
             SELECT json_build_object(
                     'type', 'FeatureCollection',
                     'features', array_to_json(feature_list),
