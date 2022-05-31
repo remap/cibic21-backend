@@ -51,6 +51,7 @@ def lambda_handler(event, context):
                 userId = enrollment['username']
                 print('Processing enrollment for userId ' + userId)
 
+                # Get flow IDs and names.
                 role = enrollment.get('role')
                 outwardFlowId = enrollment.get('outwardTripFlow', {}).get('id')
                 if outwardFlowId == None:
@@ -63,6 +64,12 @@ def lambda_handler(event, context):
                     returnFlowId = enrollment.get('returnTripFlow', {}).get('_id')
                 returnFlowName = enrollment.get('returnTripFlow', {}).get('name')
 
+                # Get related pod IDs and names.
+                if outwardFlowId != None:
+                    (outwardPodId, outwardPodName) = getPodForUser(enrollment['outwardTripFlow'], userId)
+                if returnFlowId != None:
+                    (returnPodId, returnPodName) = getPodForUser(enrollment['returnTripFlow'], userId)
+
                 homeInfo = getLocationInfo(enrollment, 'homeAddress')
                 if homeInfo == None:
                     continue
@@ -71,7 +78,8 @@ def lambda_handler(event, context):
                     continue
 
                 insertEnrollment(cur, userId, role, outwardFlowId, outwardFlowName,
-                  returnFlowId, returnFlowName, homeInfo, workInfo)
+                  returnFlowId, returnFlowName, outwardPodId, outwardPodName,
+                  returnPodId, returnPodName, homeInfo, workInfo)
 
             conn.commit()
             cur.close()
@@ -87,6 +95,21 @@ def lambda_handler(event, context):
         return lambdaReply(420, str(err))
 
     return requestReply
+
+def getPodForUser(flow, userId):
+    """
+    Search the flow for the first pod which mentions the userId and return
+    (podId, podName). If not found, return (None, None)
+    """
+    if 'pods' in flow:
+        for pod in flow['pods']:
+            if 'members' in pod:
+                for member in pod['members']:
+                    if member.get('username') == userId:
+                        return (pod.get('id'), pod.get('name'))
+
+    # Not found
+    return (None, None)
 
 def getLocationInfo(enrollment, locationName):
     """
@@ -120,18 +143,21 @@ def getLocationInfo(enrollment, locationName):
     }
 
 def insertEnrollment(cur, userId, role, outwardFlowId, outwardFlowName,
-      returnFlowId, returnFlowName, homeInfo, workInfo):
+      returnFlowId, returnFlowName, outwardPodId, outwardPodName,
+      returnPodId, returnPodName, homeInfo, workInfo):
     """
     Insert the values into the user enrollments table. homeInfo and workInfo are
     from getLocationInfo.
     """
     sql = """
 INSERT INTO {} ("userId", "role", "outwardFlowId", "outwardFlowName", "returnFlowId", "returnFlowName",
+                "outwardPodId", "outwardPodName", "returnPodId", "returnPodName",
                 "homeAddressText", "homeFullAddress", "homeZipCode", "homeCoordinate", "homeGeofenceRadius",
                 "workAddressText", "workFullAddress", "workZipCode", "workCoordinate", "workGeofenceRadius")
             VALUES %s
           """.format(CibicResources.Postgres.UserEnrollments)
     values = [(userId, role, outwardFlowId, outwardFlowName, returnFlowId, returnFlowName,
+               outwardPodId, outwardPodName, returnPodId, returnPodName,
       homeInfo['addressText'], homeInfo['fullAddress'], homeInfo['zipCode'], homeInfo['coordinate'], homeInfo['geofenceRadius'],
       workInfo['addressText'], workInfo['fullAddress'], workInfo['zipCode'], workInfo['coordinate'], workInfo['geofenceRadius'])]
     extras.execute_values(cur, sql, values)
