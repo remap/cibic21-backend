@@ -174,7 +174,7 @@ def queryRidesRich(startTime, endTime):
                         ON ride."rideId" = wp."rideId"
                         WHERE ride."startTime" BETWEEN '{2}' AND '{3}'
                         GROUP BY ride."rideId"
-						            ORDER BY ride."startTime") AS geo) AS feature_collection;
+						            ORDER BY ride."startTime" DESC) AS geo) AS feature_collection;
           """.format(CibicResources.Postgres.Rides, CibicResources.Postgres.WaypointsSnapped,
                     startTime.astimezone().strftime("%Y-%m-%d %H:%M:%S%z"),
                     endTime.astimezone().strftime("%Y-%m-%d %H:%M:%S%z"))
