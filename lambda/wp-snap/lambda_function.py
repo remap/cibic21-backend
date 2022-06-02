@@ -61,7 +61,7 @@ def lambda_handler(event, context):
 
                 # notify waypoints added
                 response = snsClient.publish(TopicArn=rideReadyTopic,
-                                            Message=json.dumps({'id':rideId, 'requestId':requestId}),
+                                            Message=json.dumps({'id':rideId, 'requestId':requestId, 'rideData':payload['rideData']}),
                                             Subject='new ride ready',
                                             )['MessageId']
                 print('sent ride ready notification: {}'.format(response))
