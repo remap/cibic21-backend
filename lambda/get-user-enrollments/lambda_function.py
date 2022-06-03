@@ -65,6 +65,10 @@ def lambda_handler(event, context):
                 returnFlowName = enrollment.get('returnTripFlow', {}).get('name')
 
                 # Get related pod IDs and names.
+                outwardPodId = None
+                outwardPodName = None
+                returnPodId = None
+                returnPodName = None
                 if outwardFlowId != None:
                     (outwardPodId, outwardPodName) = getPodForUser(enrollment['outwardTripFlow'], userId)
                 if returnFlowId != None:
