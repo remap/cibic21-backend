@@ -49,7 +49,6 @@ def lambda_handler(event, context):
         if not isRideDataValid(requestBody):
             requestReply = malformedMessageReply();
         else:
-            rideId = requestBody['_id']
             waypointsData = requestBody['trajectoryData']['waypoints']
 
             remapRideData = makeRideData(requestBody)
@@ -99,13 +98,13 @@ def lambda_handler(event, context):
 
 def isRideDataValid(body):
     # TODO: add proper JSON validation by data model
-    return '_id' in body and 'trajectoryData' in body
+    return 'id' in body and 'trajectoryData' in body
 
 def makeRideData(body):
     # for example, throw out data that we don't need
     rideData = {
         'id' : body['id'],
-        'flow': body['flow'],
+        'flow': body.get('flow', {}).get('_id'), # TODO: Should this be 'id'?
         'startTime': body['startTime'],
         'endTime': body['endTime']
         }
