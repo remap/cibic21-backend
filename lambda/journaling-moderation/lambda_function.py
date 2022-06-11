@@ -9,7 +9,7 @@ rekognition = boto3.client('rekognition')
 # Comprehend is not available in us-west-1, so use another region.
 comprehend = boto3.client('comprehend', region_name='us-west-2')
 
-imageUploadTimeoutSeconds = os.environ['ENV_LAMBDA_IMAGE_UPLOAD_TIMEOUT_SECONDS']
+imageUploadTimeoutSeconds = float(os.environ['ENV_LAMBDA_IMAGE_UPLOAD_TIMEOUT_SECONDS'])
 
 def lambda_handler(event, context):
     moderatedRequestsTable = dynamoDbResource.Table(CibicResources.DynamoDB.ModeratedJournalingRequests)
