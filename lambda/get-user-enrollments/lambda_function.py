@@ -53,6 +53,8 @@ def lambda_handler(event, context):
 
                 role = enrollment.get('role')
                 active = enrollment.get('active')
+                displayName = enrollment.get('displayName')
+                email = enrollment.get('email')
                 # Get flow IDs and names.
                 outwardFlowId = enrollment.get('outwardTripFlow', {}).get('id')
                 if outwardFlowId == None:
@@ -82,7 +84,7 @@ def lambda_handler(event, context):
                 if workInfo == None:
                     continue
 
-                insertEnrollment(cur, userId, role, active, outwardFlowId, outwardFlowName,
+                insertEnrollment(cur, userId, role, active, displayName, email, outwardFlowId, outwardFlowName,
                   returnFlowId, returnFlowName, outwardPodId, outwardPodName,
                   returnPodId, returnPodName, homeInfo, workInfo)
 
@@ -147,7 +149,7 @@ def getLocationInfo(enrollment, locationName):
       'geofenceRadius': geofenceRadius
     }
 
-def insertEnrollment(cur, userId, role, active, outwardFlowId, outwardFlowName,
+def insertEnrollment(cur, userId, role, active, displayName, email, outwardFlowId, outwardFlowName,
       returnFlowId, returnFlowName, outwardPodId, outwardPodName,
       returnPodId, returnPodName, homeInfo, workInfo):
     """
@@ -155,13 +157,13 @@ def insertEnrollment(cur, userId, role, active, outwardFlowId, outwardFlowName,
     from getLocationInfo.
     """
     sql = """
-INSERT INTO {} ("userId", "role", "active", "outwardFlowId", "outwardFlowName", "returnFlowId", "returnFlowName",
+INSERT INTO {} ("userId", "role", "active", "displayName", "email", "outwardFlowId", "outwardFlowName", "returnFlowId", "returnFlowName",
                 "outwardPodId", "outwardPodName", "returnPodId", "returnPodName",
                 "homeAddressText", "homeFullAddress", "homeZipCode", "homeCoordinate", "homeGeofenceRadius",
                 "workAddressText", "workFullAddress", "workZipCode", "workCoordinate", "workGeofenceRadius")
             VALUES %s
           """.format(CibicResources.Postgres.UserEnrollments)
-    values = [(userId, role, active, outwardFlowId, outwardFlowName, returnFlowId, returnFlowName,
+    values = [(userId, role, active, displayName, email, outwardFlowId, outwardFlowName, returnFlowId, returnFlowName,
                outwardPodId, outwardPodName, returnPodId, returnPodName,
       homeInfo['addressText'], homeInfo['fullAddress'], homeInfo['zipCode'], homeInfo['coordinate'], homeInfo['geofenceRadius'],
       workInfo['addressText'], workInfo['fullAddress'], workInfo['zipCode'], workInfo['coordinate'], workInfo['geofenceRadius'])]
