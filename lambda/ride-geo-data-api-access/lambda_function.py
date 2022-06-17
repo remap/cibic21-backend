@@ -77,7 +77,7 @@ def fetchRide(rideId):
                                rid, start_time, end_time, user_id, role, flow
                   FROM (SELECT array[ride."startZone",
                                      ride."endZone",
-                                     ST_MakeLine(array_agg(wp.coordinate::geometry ORDER BY "snapIdx"))] AS arr,
+                                     ST_MakeLine(array_agg(wp.coordinate::geometry ORDER BY "idx"))] AS arr,
                                ride."rideId" AS rid,
                                ride."startTime" AS start_time,
                                ride."endTime" AS end_time,
@@ -85,11 +85,12 @@ def fetchRide(rideId):
                                ride."role" AS role,
                                ride."flow" AS flow
                         FROM {} AS ride
-                        LEFT JOIN {} AS wp
+                        LEFT JOIN (SELECT * FROM {} WHERE zone = 'main') AS wp
                         ON ride."rideId" = wp."rideId"
                         WHERE ride."rideId" = '{}'
+                          AND wp.zone = 'main'
                         GROUP BY ride."rideId") AS geo) AS feature_collection;
-          """.format(CibicResources.Postgres.Rides, CibicResources.Postgres.WaypointsSnapped, rideId)
+          """.format(CibicResources.Postgres.Rides, CibicResources.Postgres.WaypointsRaw, rideId)
     conn = psycopg2.connect(host=pgServer, database=pgDbName,
                                             user=pgUsername, password=pgPassword)
     cur = conn.cursor()
@@ -162,7 +163,7 @@ def queryRidesRich(startTime, endTime):
                                rid, start_time, end_time, user_id, role, flow
                   FROM (SELECT array[ride."startZone",
                                      ride."endZone",
-                                     ST_MakeLine(array_agg(wp.coordinate::geometry ORDER BY "snapIdx"))] AS arr,
+                                     ST_MakeLine(array_agg(wp.coordinate::geometry ORDER BY "idx"))] AS arr,
                                ride."rideId" AS rid,
                                ride."startTime" AS start_time,
                                ride."endTime" AS end_time,
@@ -170,12 +171,12 @@ def queryRidesRich(startTime, endTime):
                                ride."role" AS role,
                                ride."flow" AS flow
                         FROM {0} AS ride
-                        LEFT JOIN {1} AS wp
+                        LEFT JOIN (SELECT * FROM {1} WHERE zone = 'main') AS wp
                         ON ride."rideId" = wp."rideId"
                         WHERE ride."startTime" BETWEEN '{2}' AND '{3}'
                         GROUP BY ride."rideId"
 						            ORDER BY ride."startTime" DESC) AS geo) AS feature_collection;
-          """.format(CibicResources.Postgres.Rides, CibicResources.Postgres.WaypointsSnapped,
+          """.format(CibicResources.Postgres.Rides, CibicResources.Postgres.WaypointsRaw,
                     startTime.astimezone().strftime("%Y-%m-%d %H:%M:%S%z"),
                     endTime.astimezone().strftime("%Y-%m-%d %H:%M:%S%z"))
     conn = psycopg2.connect(host=pgServer, database=pgDbName,
