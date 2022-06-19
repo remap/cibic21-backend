@@ -173,7 +173,7 @@ def insertRide(cur, rideId, requestId, userId, role, flow, startZone, endZone):
                             ST_Buffer(ST_GeomFromText('{}',4326)::geography,
                                         {},'quad_segs=16')::geometry,
                             ST_Buffer(ST_GeomFromText('{}',4326)::geography,
-                                        {},'quad_segs=16')::geometry
+                                        {},'quad_segs=1')::geometry
                     )
                     """.format(CibicResources.Postgres.Rides,
                                 wktPoint(cLat1, cLon1), rad1,
