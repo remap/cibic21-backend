@@ -13,7 +13,7 @@ from common.cibic_common import *
 # for a fix using Lambda Layers, see https://dev.to/razcodes/how-to-create-a-lambda-layer-in-aws-106m
 import requests
 
-bearer_token = os.environ['ENV_VAR_SURVEYMONKEY_BEARER_TOKEN']
+bearerToken = os.environ['ENV_VAR_SURVEYMONKEY_BEARER_TOKEN']
 dynamoDbResource = boto3.resource('dynamodb')
 
 def lambda_handler(event, context):
@@ -40,7 +40,7 @@ def lambda_handler(event, context):
             response = requests.get(
                 'https://api.surveymonkey.net/v3/surveys/' + surveyId +
                 '/responses/' + response_id + '/details',
-                headers = {'Authorization': 'bearer ' + bearer_token})
+                headers = {'Authorization': 'bearer ' + bearerToken})
             if response.status_code/100 == 2:
                 surveyBody = response.json()
                 if 'custom_variables' in surveyBody and 'userId' in surveyBody['custom_variables']:
