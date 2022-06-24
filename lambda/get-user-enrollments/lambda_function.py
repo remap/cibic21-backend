@@ -1,4 +1,6 @@
-# This Lambda queries the upstream endpoint to get the user enrollments, and to
+# This Lambda queries SurveyMonkey for consent surveys and gets the user name,
+# email and phone, as well as the latest completion time for the name.
+# This also queries the upstream endpoint to get the user enrollments, and to
 # save a processed version in a Postgres table. (The Lambda for the API to query
 # the Posgres table and return the user enrollments is query-user-enrollments.)
 # This Lmabda has a trigger to run periodically (i.e. each hour).
@@ -7,6 +9,7 @@ from common.cibic_common import *
 import os
 import psycopg2
 from psycopg2 import extras # for fast batch insert, see https://www.psycopg.org/docs/extras.html#fast-exec
+from datetime import datetime
 
 # Python 3.8 lambda environment does not have requests https://stackoverflow.com/questions/58952947/import-requests-on-aws-lambda-for-python-3-8
 # for a fix using Lambda Layers, see https://dev.to/razcodes/how-to-create-a-lambda-layer-in-aws-106m
@@ -20,6 +23,11 @@ pgServer = os.environ['ENV_VAR_POSTGRES_SERVER']
 pgDbName = os.environ['ENV_VAR_POSTGRES_DB']
 pgUsername = os.environ['ENV_VAR_POSTGRES_USER']
 pgPassword = os.environ['ENV_VAR_POSTGRES_PASSWORD']
+bearerToken = os.environ['ENV_VAR_SURVEYMONKEY_BEARER_TOKEN']
+consentSurveyId = os.environ['ENV_VAR_CONSENT_SURVEY_ID']
+consentSurveyNameRowId = os.environ['ENV_VAR_CONSENT_SURVEY_NAME_ROW_ID']
+consentSurveyEmailRowId = os.environ['ENV_VAR_CONSENT_SURVEY_EMAIL_ROW_ID']
+consentSurveyPhoneRowId = os.environ['ENV_VAR_CONSENT_SURVEY_PHONE_ROW_ID']
 
 def lambda_handler(event, context):
     requestReply = {}
@@ -27,6 +35,8 @@ def lambda_handler(event, context):
 
     try:
         print('get-user-enrollments event data: ' + str(event))
+
+        consentedUsers = getConsentedUsers()
 
         # Fetch from the enrollments endpoint.
         response = requests.request("GET", enrollmentsEndpointUrl,
@@ -54,7 +64,12 @@ def lambda_handler(event, context):
                 role = enrollment.get('role')
                 active = enrollment.get('active')
                 displayName = enrollment.get('displayName')
+                if displayName != None:
+                    displayName = displayName.strip()
                 email = enrollment.get('email')
+                if email != None:
+                    email = email.strip()
+
                 # Get flow IDs and names.
                 outwardFlowId = enrollment.get('outwardTripFlow', {}).get('id')
                 if outwardFlowId == None:
@@ -84,9 +99,31 @@ def lambda_handler(event, context):
                 if workInfo == None:
                     continue
 
+                consentedUser = None
+                if consentedUsers != None and displayName != None:
+                    consentedUser = consentedUsers.get(getCanonicalUserName(displayName))
+                    if consentedUser != None:
+                        # Save for checking later.
+                        consentedUser['inserted'] = True
+
                 insertEnrollment(cur, userId, role, active, displayName, email, outwardFlowId, outwardFlowName,
                   returnFlowId, returnFlowName, outwardPodId, outwardPodName,
-                  returnPodId, returnPodName, homeInfo, workInfo)
+                  returnPodId, returnPodName, homeInfo, workInfo, consentedUser)
+
+            # Check for consented users which didn't match an enrollment.
+            noEnrollmentCount = 0
+            if consentedUsers != None:
+                for _, consentedUser in consentedUsers.items():
+                    if consentedUser.get('inserted') == True:
+                        continue
+
+                    # Make a phantom userId and insert a null enrollment with the consent info.
+                    noEnrollmentCount += 1
+                    insertEnrollment(cur, '(no-enrollment-{:03})'.format(noEnrollmentCount),
+                      None, False, None, None, None, None, None, None, None, None, None, None,
+                      { 'coordinate': '0,0', 'addressText': None, 'fullAddress': None, 'zipCode': None, 'geofenceRadius': None },
+                      { 'coordinate': '0,0', 'addressText': None, 'fullAddress': None, 'zipCode': None, 'geofenceRadius': None },
+                      consentedUser)
 
             conn.commit()
             cur.close()
@@ -149,21 +186,112 @@ def getLocationInfo(enrollment, locationName):
       'geofenceRadius': geofenceRadius
     }
 
+def getConsentedUsers():
+    """
+    Fetch completed consent surveys from SurveyMonkey and process the 'completed' surveys.
+    (Assume that a 'completed' survey gives consent.)
+    Return a dict where the key is the canonical name (lower case, not accents),
+    and the values is a dict of 'time' (as datetime), 'name', 'email', 'phone'.
+    Only return the latest entry for the canonical name.
+    If problem, print an error and return None.
+    """
+    try:
+        # TODO: Check 'total' and fetch multiple pages.
+        # TODO: Don't use /bulk for the initial fetch.
+        response = requests.get(
+            'https://api.surveymonkey.net/v3/surveys/' + consentSurveyId +
+            '/responses/bulk?per_page=100',
+            headers = {'Authorization': 'bearer ' + bearerToken})
+        if response.status_code/100 != 2:
+            raise ValueError('SurveyMonkey API request failed with code {}'.format(response.status_code))
+
+        surveyBody = response.json()
+        result = {}
+        gotConsentSurveyNameRowId = False
+        gotConsentSurveyEmailRowId = False
+        gotConsentSurveyPhoneRowId = False
+
+        for response in surveyBody['data']:
+            if not response.get('response_status') == 'completed':
+                continue
+            time = datetime.fromisoformat(response['date_modified'])
+
+            name = None
+            email = None
+            phone = None
+            # Find the rows with the name, email and phone.
+            for page in response['pages']:
+                if not 'questions' in page:
+                    continue
+                for question in page['questions']:
+                    for answer in question['answers']:
+                        if answer.get('row_id') == consentSurveyNameRowId:
+                            gotConsentSurveyNameRowId = True
+                            name = answer.get('text')
+                        elif answer.get('row_id') == consentSurveyEmailRowId:
+                            gotConsentSurveyEmailRowId = True
+                            email = answer.get('text')
+                        elif answer.get('row_id') == consentSurveyPhoneRowId:
+                            gotConsentSurveyPhoneRowId = True
+                            phone = answer.get('text')
+
+            if name != None:
+                canonicalName = getCanonicalUserName(name)
+                # Replace an earlier entry for the same canonicalName.
+                if not canonicalName in result or time > result[canonicalName]['time']:
+                    result[canonicalName] = {
+                        'time': time,
+                        'name': name.strip(),
+                        'email': None if email == None else email.strip(),
+                        'phone': None if phone == None else phone.strip()
+                    }
+
+        if not gotConsentSurveyNameRowId:
+            raise ValueError("No survey has a name row id " + str(consentSurveyNameRowId))
+        if not gotConsentSurveyEmailRowId:
+            raise ValueError("No survey has an email row id " + str(consentSurveyEmailRowId))
+        if not gotConsentSurveyPhoneRowId:
+            raise ValueError("No survey has a phone row id " + str(consentSurveyPhoneRowId))
+
+        return result
+    except:
+        reportError()
+        return None
+
+def getCanonicalUserName(name):
+    # TODO: Also use unidecode.
+    return name.lower().strip()
+
 def insertEnrollment(cur, userId, role, active, displayName, email, outwardFlowId, outwardFlowName,
       returnFlowId, returnFlowName, outwardPodId, outwardPodName,
-      returnPodId, returnPodName, homeInfo, workInfo):
+      returnPodId, returnPodName, homeInfo, workInfo, consentedUser):
     """
     Insert the values into the user enrollments table. homeInfo and workInfo are
-    from getLocationInfo.
+    from getLocationInfo(). If not None, consentedUser is an item returned by
+    getConsentedUsers().
     """
+    consentedName = None
+    consentedEmail = None
+    consentedPhone = None
+    consentedTime = None
+    if consentedUser != None:
+        consentedName = consentedUser['name']
+        consentedEmail = consentedUser['email']
+        consentedPhone = consentedUser['phone']
+        consentedTime = consentedUser['time']
+
     sql = """
-INSERT INTO {} ("userId", "role", "active", "displayName", "email", "outwardFlowId", "outwardFlowName", "returnFlowId", "returnFlowName",
+INSERT INTO {} ("userId", "role", "active", "displayName", "email",
+                "consentedName", "consentedEmail", "consentedPhone", "consentedTime",
+                "outwardFlowId", "outwardFlowName", "returnFlowId", "returnFlowName",
                 "outwardPodId", "outwardPodName", "returnPodId", "returnPodName",
                 "homeAddressText", "homeFullAddress", "homeZipCode", "homeCoordinate", "homeGeofenceRadius",
                 "workAddressText", "workFullAddress", "workZipCode", "workCoordinate", "workGeofenceRadius")
             VALUES %s
           """.format(CibicResources.Postgres.UserEnrollments)
-    values = [(userId, role, active, displayName, email, outwardFlowId, outwardFlowName, returnFlowId, returnFlowName,
+    values = [(userId, role, active, displayName, email,
+               consentedName, consentedEmail, consentedPhone, consentedTime,
+               outwardFlowId, outwardFlowName, returnFlowId, returnFlowName,
                outwardPodId, outwardPodName, returnPodId, returnPodName,
       homeInfo['addressText'], homeInfo['fullAddress'], homeInfo['zipCode'], homeInfo['coordinate'], homeInfo['geofenceRadius'],
       workInfo['addressText'], workInfo['fullAddress'], workInfo['zipCode'], workInfo['coordinate'], workInfo['geofenceRadius'])]
