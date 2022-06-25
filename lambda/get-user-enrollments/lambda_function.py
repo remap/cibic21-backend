@@ -8,6 +8,7 @@
 from common.cibic_common import *
 import os
 import psycopg2
+import unidecode
 from psycopg2 import extras # for fast batch insert, see https://www.psycopg.org/docs/extras.html#fast-exec
 from datetime import datetime
 
@@ -259,8 +260,10 @@ def getConsentedUsers():
         return None
 
 def getCanonicalUserName(name):
-    # TODO: Also use unidecode.
-    return name.lower().strip()
+    """
+    Get the canonical name by removing accents, leading/trailing whitespace and making lower case.
+    """
+    return unidecode.unidecode(name).lower().strip()
 
 def insertEnrollment(cur, userId, role, active, displayName, email, outwardFlowId, outwardFlowName,
       returnFlowId, returnFlowName, outwardPodId, outwardPodName,
