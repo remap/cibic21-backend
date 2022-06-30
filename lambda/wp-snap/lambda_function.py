@@ -20,7 +20,7 @@ snsClient = boto3.client('sns')
 
 # lambda is triggered by SNS notification
 # SNS message expected payload:
-# { "id": "<ride-id>" }
+# { "id": "<ride-id>", "requestId": "<request-id>", "rideData": {} }
 def lambda_handler(event, context):
     try:
         # print (event)
