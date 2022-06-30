@@ -10,7 +10,6 @@ lambdaClient = boto3.client('lambda')
 # resource ARNs must be defined as lambda environment variables
 # see https://docs.aws.amazon.com/lambda/latest/dg/configuration-envvars.html#configuration-envvars-config
 # requestTableArn = os.environ['ENV_DYNAMODB_ENDPOINT_REQUESTS_TABLE_NAME']
-rideDataProcArn = os.environ['ENV_LAMBDA_ARN_RIDE_DATA_PROC']
 waypointsProcArn = os.environ['ENV_LAMBDA_ARN_WP_PROC']
 
 def lambda_handler(event, context):
@@ -52,15 +51,6 @@ def lambda_handler(event, context):
             waypointsData = requestBody['trajectoryData']['waypoints']
 
             remapRideData = makeRideData(requestBody)
-            # async-invoke ride data processing lambda
-            res = lambdaClient.invoke(FunctionName = rideDataProcArn,
-                                InvocationType = 'Event',
-                                Payload = json.dumps({
-                                                        'rid': requestId,
-                                                        'data': remapRideData
-                                                    })
-                                )
-            print('ride-proc async-invoke reply status code '+str(res['StatusCode']))
 
             # async-invoke waypoints processing lambda
             res = lambdaClient.invoke(FunctionName = waypointsProcArn,
@@ -105,15 +95,7 @@ def makeRideData(body):
     rideData = {
         'id' : body['id'],
         'flow': body.get('flow', {}).get('_id'), # TODO: Should this be 'id'?
-        'startTime': body['startTime'],
-        'endTime': body['endTime']
         }
-
-    # Change ISO time Z to make Python happy.
-    if rideData['startTime'].endswith('Z'):
-        rideData['startTime'] = rideData['startTime'][:-1] + '+00:00'
-    if rideData['endTime'].endswith('Z'):
-        rideData['endTime'] = rideData['endTime'][:-1] + '+00:00'
 
     if 'cibicUser' in body:
         cibicUser = body['cibicUser']
