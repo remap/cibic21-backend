@@ -2,23 +2,22 @@ from common.cibic_common import *
 
 dynamoDbResource = boto3.resource('dynamodb')
 
-# process ride data
-# expected payload:
-# {
-#   'rid': "API-endpoint-request-id",
-#   'data': { <ride-data> }
-# }
+# lambda is triggered by SNS notification
+# SNS message expected payload:
+# { "id": "<ride-id>", "requestId": "<request-id>", "rideData": {} }
 def lambda_handler(event, context):
     try:
-        if 'rid' in event and 'data' in event:
-            print ('API request {} process ride data {} '.format(event['rid'], str(event['data'])))
+      for rec in event['Records']:
+        payload = json.loads(rec['Sns']['Message'])
+        if 'requestId' in payload and 'rideData' in payload:
+            print ('API request {} process ride data {} '.format(payload['requestId'], str(payload['rideData'])))
             rideDataTable = dynamoDbResource.Table(CibicResources.DynamoDB.RideData)
-            rideData = event['data']
+            rideData = payload['rideData']
             rideDataTable.update_item(
                 Key = { 'rideId': rideData['id']},
                 UpdateExpression="SET requestId=:rid, userId=:uid, #r=:role1, flow=:flowData, startTime=:start, endTime=:end",
                 ExpressionAttributeValues={
-                    ':rid': event['rid'],
+                    ':rid': payload['requestId'],
                     ':uid' : rideData.get('userId'),
                     ':role1': rideData.get('role'),
                     ':flowData': rideData.get('flow'),
