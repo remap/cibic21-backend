@@ -43,6 +43,15 @@ def lambda_handler(event, context):
                 # split waypoints into three zones
                 startZone, endZone, mainZone = splitWaypoints(obfuscateRadius, waypoints)
 
+                # Add the start and end time to rideData based on start/end zones.
+                rideData['startTime'] = startZone[0]['timestamp']
+                rideData['endTime'] = endZone[-1]['timestamp']
+                # Change ISO time Z to make Python happy.
+                if rideData['startTime'].endswith('Z'):
+                    rideData['startTime'] = rideData['startTime'][:-1] + '+00:00'
+                if rideData['endTime'].endswith('Z'):
+                    rideData['endTime'] = rideData['endTime'][:-1] + '+00:00'
+
                 # insert data into postgres
                 conn = psycopg2.connect(host=pgServer, database=pgDbName,
                                         user=pgUsername, password=pgPassword)
