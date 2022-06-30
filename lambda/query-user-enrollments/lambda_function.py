@@ -21,7 +21,9 @@ def lambda_handler(event, context):
         cur = conn.cursor()
 
         sql = """
-          SELECT "userId", "role", "active", "displayName", "email", "outwardFlowName", "outwardFlowId", "returnFlowName", "returnFlowId",
+          SELECT "userId", "role", "active", "displayName", "email",
+            "consentedName", "consentedEmail", "consentedPhone", to_json("consentedTime"),
+            "outwardFlowName", "outwardFlowId", "returnFlowName", "returnFlowId",
             "outwardPodName", "outwardPodId", "returnPodName", "returnPodId",
             "homeAddressText", "homeFullAddress", "homeZipCode", "homeCoordinate", "homeGeofenceRadius",
             "workAddressText", "workFullAddress", "workZipCode", "workCoordinate", "workGeofenceRadius"
@@ -37,27 +39,31 @@ def lambda_handler(event, context):
               'active': enrollment[2],
               'displayName': enrollment[3],
               'email': enrollment[4],
-              'outwardFlowName': enrollment[5],
-              'outwardFlowId': enrollment[6],
-              'returnFlowName': enrollment[7],
-              'returnFlowId': enrollment[8],
-              'outwardPodName': enrollment[9],
-              'outwardPodId': enrollment[10],
-              'returnPodName': enrollment[11],
-              'returnPodId': enrollment[12],
+              "consentedName": enrollment[5],
+              "consentedEmail": enrollment[6],
+              "consentedPhone": enrollment[7],
+              "consentedTime": enrollment[8],
+              'outwardFlowName': enrollment[9],
+              'outwardFlowId': enrollment[10],
+              'returnFlowName': enrollment[11],
+              'returnFlowId': enrollment[12],
+              'outwardPodName': enrollment[13],
+              'outwardPodId': enrollment[14],
+              'returnPodName': enrollment[15],
+              'returnPodId': enrollment[16],
               'home': {
-                'addressText': enrollment[13],
-                'fullAddress': enrollment[14],
-                'zipCode': enrollment[15],
-                'coordinate': enrollment[16],
-                'geofenceRadius': enrollment[17]
+                'addressText': enrollment[17],
+                'fullAddress': enrollment[18],
+                'zipCode': enrollment[19],
+                'coordinate': enrollment[20],
+                'geofenceRadius': enrollment[21]
               },
               'work': {
-                'addressText': enrollment[18],
-                'fullAddress': enrollment[19],
-                'zipCode': enrollment[20],
-                'coordinate': enrollment[21],
-                'geofenceRadius': enrollment[22]
+                'addressText': enrollment[22],
+                'fullAddress': enrollment[23],
+                'zipCode': enrollment[24],
+                'coordinate': enrollment[25],
+                'geofenceRadius': enrollment[26]
               }
             })
 
