@@ -85,6 +85,9 @@ def processedReply():
 ################################################################################
 # https://en.wikipedia.org/wiki/Haversine_formula
 def getGreatCircleDistance(lat1, lon1, lat2, lon2):
+    if lat1 == lat2 and lon1 == lon2:
+        return 0.0
+
     R = 6378.137 # earth radius in km
     lat1 = math.radians(lat1)
     lat2 = math.radians(lat2)
