@@ -60,6 +60,7 @@ def lambda_handler(event, context):
                                                         'data':
                                                         {
                                                             'rideData' : remapRideData,
+                                                            'flowData' : requestBody.get('flow'),
                                                             'waypoints': waypointsData
                                                         }
                                                     })
