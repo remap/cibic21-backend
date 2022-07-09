@@ -27,6 +27,7 @@ class CibicResources():
         # By default, table names are for the prod stage. For the dev stage, append "_dev".
         Rides = 'cibic21_rides'
         WaypointsRaw = 'cibic21_waypoints_raw'
+        RideFlowWaypoints = 'cibic21_ride_flow_waypoints'
         WaypointsSnapped = 'cibic21_waypoints_snapped'
         UserEnrollments = 'cibic21_user_enrollments'
 

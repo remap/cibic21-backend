@@ -17,7 +17,7 @@ waypointsReadyTopic = os.environ['ENV_SNS_WAYPOINTS_READY']
 # expected payload:
 # {
 #   'rid': "API-endpoint-request-id",
-#   'data': { 'rideData' : {'id': "rideId"}, 'waypoints' : <waypoints-data> }
+#   'data': { 'rideData' : {'id': "rideId"}, 'flowData' : <flow-waypoints>, 'waypoints' : <waypoints-data> }
 # }
 def lambda_handler(event, context):
     try:
@@ -26,6 +26,7 @@ def lambda_handler(event, context):
             payload = event['data']
             if 'rideData' in payload and 'id' in payload['rideData'] and 'waypoints' in payload:
                 rideData = payload['rideData']
+                flowData = payload['flowData']
                 rideId = rideData['id']
                 waypoints = validateWaypoints(payload['waypoints'])
                 print ('API request {} process waypoints for ride {} ({} waypoints)'
@@ -64,6 +65,15 @@ def lambda_handler(event, context):
                 insertRide(cur, rideId, requestId, userId, role, flow, startZone, endZone)
                 # insert raw waypoints
                 insertRawWaypoints(cur, rideId, requestId, waypoints)
+                # Insert the flow waypoints which may change over time for the same flow ID.
+                if flow != None and 'route' in flowData:
+                    # Locally assign the waypoint indexes.
+                    idx = 0
+                    for wp in flowData['route']:
+                        wp['idx'] = idx
+                        idx += 1
+
+                    insertFlowWaypoints(cur, rideId, requestId, flow, flowData['route'])
 
                 conn.commit()
                 cur.close()
@@ -215,14 +225,27 @@ def wktPoint(lat, lon):
 
 def insertRawWaypoints(cur, rideId, requestId, waypoints):
     sql = """
-            INSERT INTO {}
+            INSERT INTO {} ("rideId", coordinate, timestamp, "roadType", speed, distance, "speedLimit", idx, zone, "requestId")
             VALUES %s
           """.format(CibicResources.Postgres.WaypointsRaw)
     values = list((rideId, makeSqlPoint(wp['latitude'], wp['longitude']),
                     wp['timestamp'], wp['road_type'], wp['speed'], wp['distance'],
                     wp['speed_limit'], wp['originalIdx'], wp['zone'], requestId) for wp in waypoints)
     extras.execute_values(cur, sql, values)
-    print('sql query execute result: ' + str(cur.statusmessage))
+    print('sql insert raw waypoints execute result: ' + str(cur.statusmessage))
+
+def insertFlowWaypoints(cur, rideId, requestId, flow, waypoints):
+    try:
+        sql = """
+                INSERT INTO {} ("rideId", flow, coordinate, idx, "requestId")
+                VALUES %s
+              """.format(CibicResources.Postgres.RideFlowWaypoints)
+        values = list((rideId, flow, makeSqlPoint(wp['lat'], wp['long']),
+                       wp['idx'], requestId) for wp in waypoints)
+        extras.execute_values(cur, sql, values)
+        print('sql insert flow waypoints execute result: ' + str(cur.statusmessage))
+    except:
+        print('caught exception in insertFlowWaypoints:', sys.exc_info()[0])
 
 def makeSqlPoint(lat, lon):
     return str(lon) + ', ' + str(lat)
