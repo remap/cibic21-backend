@@ -62,7 +62,10 @@ def lambda_handler(event, context):
                 userId = rideData.get('userId')
                 role = rideData.get('role')
                 flow = rideData.get('flow')
-                insertRide(cur, rideId, requestId, userId, role, flow, startZone, endZone)
+                if flowData != None:
+                    flowName = flowData.get('name')
+                    flowIsToWork = flowData.get('isToWork')
+                insertRide(cur, rideId, requestId, userId, role, flow, flowName, flowIsToWork, startZone, endZone)
                 # insert raw waypoints
                 insertRawWaypoints(cur, rideId, requestId, waypoints)
                 # Insert the flow waypoints which may change over time for the same flow ID.
@@ -182,13 +185,13 @@ def splitWaypoints(radius, waypoints):
         return (startZone, endZone, mainZone)
     return ([],[],[])
 
-def insertRide(cur, rideId, requestId, userId, role, flow, startZone, endZone):
+def insertRide(cur, rideId, requestId, userId, role, flow, flowName, flowIsToWork, startZone, endZone):
     # generate start / end geometry
     cLat1, cLon1, rad1 = obfuscateWaypoints(startZone)
     cLat2, cLon2, rad2 = obfuscateWaypoints(endZone)
     sqlInsertRide = """
-                    INSERT INTO {}("rideId", "requestId", "startTime", "endTime", "userId", "role", "flow", "startZone", "endZone")
-                    VALUES (%s, %s, %s, %s, %s, %s, %s,
+                    INSERT INTO {}("rideId", "requestId", "startTime", "endTime", "userId", "role", "flow", "flowName", "flowIsToWork", "startZone", "endZone")
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s,
                             ST_Buffer(ST_GeomFromText('{}',4326)::geography,
                                         {},'quad_segs=16')::geometry,
                             ST_Buffer(ST_GeomFromText('{}',4326)::geography,
@@ -197,7 +200,7 @@ def insertRide(cur, rideId, requestId, userId, role, flow, startZone, endZone):
                     """.format(CibicResources.Postgres.Rides,
                                 wktPoint(cLat1, cLon1), rad1,
                                 wktPoint(cLat2, cLon2), rad2)
-    cur.execute(sqlInsertRide, (rideId, requestId, startZone[0]['timestamp'], endZone[-1]['timestamp'], userId, role, flow))
+    cur.execute(sqlInsertRide, (rideId, requestId, startZone[0]['timestamp'], endZone[-1]['timestamp'], userId, role, flow, flowName, flowIsToWork))
 
 def obfuscateWaypoints(waypoints):
     centerLat = 0
