@@ -59,7 +59,9 @@ def fetchRide(rideId):
                                     'endTime', end_time,
                                     'userId', user_id,
                                     'role', role,
-                                    'flow', flow
+                                    'flow', flow,
+                                    'flowName', flow_name,
+                                    'flowIsToWork', flow_is_to_work
                                   )
                     )
             FROM (SELECT array[json_build_object(
@@ -74,7 +76,7 @@ def fetchRide(rideId):
                                 'type', 'Feature',
                                 'geometry', ST_AsGeoJSON(arr[3])::json)
                                ] AS feature_list,
-                               rid, start_time, end_time, user_id, role, flow
+                               rid, start_time, end_time, user_id, role, flow, flow_name, flow_is_to_work
                   FROM (SELECT array[ride."startZone",
                                      ride."endZone",
                                      ST_MakeLine(array_agg(wp.coordinate::geometry ORDER BY "idx"))] AS arr,
@@ -83,7 +85,9 @@ def fetchRide(rideId):
                                ride."endTime" AS end_time,
                                ride."userId" AS user_id,
                                ride."role" AS role,
-                               ride."flow" AS flow
+                               ride."flow" AS flow,
+                               ride."flowName" AS flow_name,
+                               ride."flowIsToWork" AS flow_is_to_work
                         FROM {} AS ride
                         LEFT JOIN (SELECT * FROM {} WHERE zone = 'main') AS wp
                         ON ride."rideId" = wp."rideId"
@@ -145,7 +149,9 @@ def queryRidesRich(startTime, endTime):
                                     'endTime', end_time,
                                     'userId', user_id,
                                     'role', role,
-                                    'flow', flow
+                                    'flow', flow,
+                                    'flowName', flow_name,
+                                    'flowIsToWork', flow_is_to_work
                                   )
                     )
             FROM (SELECT array[json_build_object(
@@ -160,7 +166,7 @@ def queryRidesRich(startTime, endTime):
                                 'type', 'Feature',
                                 'geometry', ST_AsGeoJSON(arr[3])::json)
                                ] AS feature_list,
-                               rid, start_time, end_time, user_id, role, flow
+                               rid, start_time, end_time, user_id, role, flow, flow_name, flow_is_to_work
                   FROM (SELECT array[ride."startZone",
                                      ride."endZone",
                                      ST_MakeLine(array_agg(wp.coordinate::geometry ORDER BY "idx"))] AS arr,
@@ -169,7 +175,9 @@ def queryRidesRich(startTime, endTime):
                                ride."endTime" AS end_time,
                                ride."userId" AS user_id,
                                ride."role" AS role,
-                               ride."flow" AS flow
+                               ride."flow" AS flow,
+                               ride."flowName" AS flow_name,
+                               ride."flowIsToWork" AS flow_is_to_work
                         FROM {0} AS ride
                         LEFT JOIN (SELECT * FROM {1} WHERE zone = 'main') AS wp
                         ON ride."rideId" = wp."rideId"
