@@ -79,7 +79,7 @@ def fetchRide(rideId):
                                rid, start_time, end_time, user_id, role, flow, flow_name, flow_is_to_work
                   FROM (SELECT ride."startZone" AS start_zone,
                                ride."endZone" AS end_zone,
-                               ST_MakeLine(array_agg(wp.coordinate::geometry ORDER BY "idx")) AS ride_line,
+                               wp.ride_line,
                                ride."rideId" AS rid,
                                ride."startTime" AS start_time,
                                ride."endTime" AS end_time,
@@ -89,10 +89,12 @@ def fetchRide(rideId):
                                ride."flowName" AS flow_name,
                                ride."flowIsToWork" AS flow_is_to_work
                          FROM {0} AS ride
-                         LEFT JOIN (SELECT * FROM {1} WHERE zone = 'main') AS wp
+                         LEFT JOIN (SELECT "rideId", ST_MakeLine(array_agg(coordinate::geometry ORDER BY "idx")) AS ride_line
+                                    FROM {1}
+                                    WHERE zone = 'main'
+                                    GROUP BY "rideId") AS wp
                          ON ride."rideId" = wp."rideId"
                          WHERE ride."rideId" = '{2}'
-                         GROUP BY ride."rideId"
                        ) AS geo
                  ) AS feature_collection;
           """.format(CibicResources.Postgres.Rides, CibicResources.Postgres.WaypointsRaw, rideId)
@@ -170,7 +172,7 @@ def queryRidesRich(startTime, endTime):
                                rid, start_time, end_time, user_id, role, flow, flow_name, flow_is_to_work
                   FROM (SELECT ride."startZone" AS start_zone,
                                ride."endZone" AS end_zone,
-                               ST_MakeLine(array_agg(wp.coordinate::geometry ORDER BY "idx")) AS ride_line,
+                               wp.ride_line,
                                ride."rideId" AS rid,
                                ride."startTime" AS start_time,
                                ride."endTime" AS end_time,
@@ -180,10 +182,12 @@ def queryRidesRich(startTime, endTime):
                                ride."flowName" AS flow_name,
                                ride."flowIsToWork" AS flow_is_to_work
                          FROM {0} AS ride
-                         LEFT JOIN (SELECT * FROM {1} WHERE zone = 'main') AS wp
+                         LEFT JOIN (SELECT "rideId", ST_MakeLine(array_agg(coordinate::geometry ORDER BY "idx")) AS ride_line
+                                    FROM {1}
+                                    WHERE zone = 'main'
+                                    GROUP BY "rideId") AS wp
                          ON ride."rideId" = wp."rideId"
                          WHERE ride."startTime" BETWEEN '{2}' AND '{3}'
-                         GROUP BY ride."rideId"
 						             ORDER BY ride."startTime" DESC
                        ) AS geo
                  ) AS feature_collection;
