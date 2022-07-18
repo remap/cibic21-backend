@@ -61,7 +61,8 @@ def fetchRide(rideId):
                                      'role', role,
                                      'flow', flow,
                                      'flowName', flow_name,
-                                     'flowIsToWork', flow_is_to_work
+                                     'flowIsToWork', flow_is_to_work,
+                                     'flowPath', flow_path
                                    )
                    )
             FROM (SELECT array[json_build_object(
@@ -76,10 +77,14 @@ def fetchRide(rideId):
                                 'type', 'Feature',
                                 'geometry', ST_AsGeoJSON(ride_line)::json)
                                ] AS feature_list,
+                               json_build_object(
+                                'type', 'Feature',
+                                'geometry', ST_AsGeoJSON(flow_line)::json) AS flow_path,
                                rid, start_time, end_time, user_id, role, flow, flow_name, flow_is_to_work
                   FROM (SELECT ride."startZone" AS start_zone,
                                ride."endZone" AS end_zone,
                                wp.ride_line,
+                               flow_wp.flow_line,
                                ride."rideId" AS rid,
                                ride."startTime" AS start_time,
                                ride."endTime" AS end_time,
@@ -94,10 +99,15 @@ def fetchRide(rideId):
                                     WHERE zone = 'main'
                                     GROUP BY "rideId") AS wp
                          ON ride."rideId" = wp."rideId"
-                         WHERE ride."rideId" = '{2}'
+                         LEFT JOIN (SELECT "rideId", ST_MakeLine(array_agg(coordinate::geometry ORDER BY "idx")) AS flow_line
+                                    FROM {2}
+                                    GROUP BY "rideId") AS flow_wp
+                         ON ride."rideId" = flow_wp."rideId"
+                         WHERE ride."rideId" = '{3}'
                        ) AS geo
                  ) AS feature_collection;
-          """.format(CibicResources.Postgres.Rides, CibicResources.Postgres.WaypointsRaw, rideId)
+          """.format(CibicResources.Postgres.Rides, CibicResources.Postgres.WaypointsRaw,
+                     CibicResources.Postgres.RideFlowWaypoints, rideId)
     conn = psycopg2.connect(host=pgServer, database=pgDbName,
                                             user=pgUsername, password=pgPassword)
     cur = conn.cursor()
@@ -154,7 +164,8 @@ def queryRidesRich(startTime, endTime):
                                      'role', role,
                                      'flow', flow,
                                      'flowName', flow_name,
-                                     'flowIsToWork', flow_is_to_work
+                                     'flowIsToWork', flow_is_to_work,
+                                     'flowPath', flow_path
                                    )
                    )
             FROM (SELECT array[json_build_object(
@@ -169,10 +180,14 @@ def queryRidesRich(startTime, endTime):
                                 'type', 'Feature',
                                 'geometry', ST_AsGeoJSON(ride_line)::json)
                                ] AS feature_list,
+                               json_build_object(
+                                'type', 'Feature',
+                                'geometry', ST_AsGeoJSON(flow_line)::json) AS flow_path,
                                rid, start_time, end_time, user_id, role, flow, flow_name, flow_is_to_work
                   FROM (SELECT ride."startZone" AS start_zone,
                                ride."endZone" AS end_zone,
                                wp.ride_line,
+                               flow_wp.flow_line,
                                ride."rideId" AS rid,
                                ride."startTime" AS start_time,
                                ride."endTime" AS end_time,
@@ -187,11 +202,15 @@ def queryRidesRich(startTime, endTime):
                                     WHERE zone = 'main'
                                     GROUP BY "rideId") AS wp
                          ON ride."rideId" = wp."rideId"
-                         WHERE ride."startTime" BETWEEN '{2}' AND '{3}'
+                         LEFT JOIN (SELECT "rideId", ST_MakeLine(array_agg(coordinate::geometry ORDER BY "idx")) AS flow_line
+                                    FROM {2}
+                                    GROUP BY "rideId") AS flow_wp
+                         ON ride."rideId" = flow_wp."rideId"
+                         WHERE ride."startTime" BETWEEN '{3}' AND '{4}'
 						             ORDER BY ride."startTime" DESC
                        ) AS geo
                  ) AS feature_collection;
-          """.format(CibicResources.Postgres.Rides, CibicResources.Postgres.WaypointsRaw,
+          """.format(CibicResources.Postgres.Rides, CibicResources.Postgres.WaypointsRaw, CibicResources.Postgres.RideFlowWaypoints,
                     startTime.astimezone().strftime("%Y-%m-%d %H:%M:%S%z"),
                     endTime.astimezone().strftime("%Y-%m-%d %H:%M:%S%z"))
     conn = psycopg2.connect(host=pgServer, database=pgDbName,
