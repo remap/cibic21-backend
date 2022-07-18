@@ -88,11 +88,10 @@ def fetchRide(rideId):
                                ride."flow" AS flow,
                                ride."flowName" AS flow_name,
                                ride."flowIsToWork" AS flow_is_to_work
-                         FROM {} AS ride
-                         LEFT JOIN (SELECT * FROM {} WHERE zone = 'main') AS wp
+                         FROM {0} AS ride
+                         LEFT JOIN (SELECT * FROM {1} WHERE zone = 'main') AS wp
                          ON ride."rideId" = wp."rideId"
-                         WHERE ride."rideId" = '{}'
-                           AND wp.zone = 'main'
+                         WHERE ride."rideId" = '{2}'
                          GROUP BY ride."rideId"
                        ) AS geo
                  ) AS feature_collection;
