@@ -1,6 +1,7 @@
 # This Lambda gets the userId/role from the GET endpoint URL, accesses the DynamoDB
 # table for raw survey data, and gets the maximum timestamp for the userId/role
 # along with the associated surveyId. It also fetches the outstanding survey CSV
+# (or the initial survey CSV if the user has not completed a survey)
 # and finds the latest entry where the role matches or is "*".
 # Return a JSON dictionary with completionTime, surveyId, availableSurveyId and
 # availableSurveyUrl, where each of these is "" if not found.
@@ -13,7 +14,8 @@ from common.cibic_common import *
 # for a fix using Lambda Layers, see https://dev.to/razcodes/how-to-create-a-lambda-layer-in-aws-106m
 import requests
 
-availableSurveysUrl = os.environ['ENV_VAR_AVAILABLE_SURVEYS_URL']
+initialSurveysUrl = os.environ['ENV_VAR_INITIAL_SURVEYS_URL']
+outstandingSurveysUrl = os.environ['ENV_VAR_OUTSTANDING_SURVEYS_URL']
 
 dynamoDbResource = boto3.resource('dynamodb')
 
@@ -28,8 +30,6 @@ def lambda_handler(event, context):
         role = event['pathParameters']['role']
         print('Getting completion time for: ' + userId + '/' + role)
 
-        reply = getAvailableSurvey(role)
-
         response = surveysTable.scan(
           FilterExpression = Attr('userId').eq(userId) &
                              Attr('role').eq(role) &
@@ -41,8 +41,8 @@ def lambda_handler(event, context):
         )
         items = response['Items']
         
-        reply['completionTime'] = ''
-        reply['surveyId'] = ''
+        reply = {'completionTime': '',
+                 'surveyId': '' }
         if len(items) > 0:
             # Get the item with the max timestamp.
             maxItem = None
@@ -52,15 +52,23 @@ def lambda_handler(event, context):
             reply['completionTime'] = maxItem['timestamp']
             reply['surveyId'] = maxItem['surveyId']
 
+        if reply['completionTime'] == '':
+            # The user has not filled out a survey yet. Get the initial survey.
+            surveysUrl = initialSurveysUrl
+        else:
+            # The user has filled out a survey. Get the outstanding survey.
+            surveysUrl = outstandingSurveysUrl
+        reply.update(getAvailableSurvey(surveysUrl, role))
+
         return lambdaReply(200, reply)
     except:
         err = reportError()
         print('caught exception:', sys.exc_info()[0])
         return lambdaReply(420, str(err))
 
-def getAvailableSurvey(role):
+def getAvailableSurvey(surveysUrl, role):
     """
-    Fetch the outstanding survey CSV and find the latest entry where the role
+    Fetch the survey CSV from surveysUrl and find the latest entry where the role
     matches the given role or is "*".
     Return a dictionary where availableSurveyId and availableSurveyUrl are the
     survey ID and URL for the role, or empty strings if not found.
@@ -68,7 +76,7 @@ def getAvailableSurvey(role):
     availableSurveyId = ''
     availableSurveyUrl = ''
 
-    response = requests.get(availableSurveysUrl, stream = True)
+    response = requests.get(surveysUrl, stream = True)
     if response.status_code/100 == 2:
         # Get the text and remove CR.
         csv = response.raw.read().decode("utf-8").replace('\r', '')
