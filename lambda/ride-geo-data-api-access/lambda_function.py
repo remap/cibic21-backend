@@ -75,7 +75,10 @@ def fetchRide(rideId):
                                ),
                                json_build_object(
                                 'type', 'Feature',
-                                'geometry', ST_AsGeoJSON(ride_line)::json)
+                                'geometry', json_build_object(
+                                              'type', 'LineString',
+                                              'coordinates', array_to_json(ride_line)
+                                            ))
                                ] AS feature_list,
                                json_build_object(
                                 'type', 'Feature',
@@ -94,7 +97,9 @@ def fetchRide(rideId):
                                ride."flowName" AS flow_name,
                                ride."flowIsToWork" AS flow_is_to_work
                          FROM {0} AS ride
-                         LEFT JOIN (SELECT "rideId", ST_MakeLine(array_agg(coordinate::geometry ORDER BY "idx")) AS ride_line
+                         LEFT JOIN (SELECT "rideId",
+                                       array_agg(json_build_array(ST_X(coordinate::geometry), ST_Y(coordinate::geometry), 0, to_json(timestamp))
+                                                 ORDER BY "idx") AS ride_line
                                     FROM {1}
                                     WHERE zone = 'main'
                                     GROUP BY "rideId") AS wp
@@ -178,7 +183,10 @@ def queryRidesRich(startTime, endTime):
                                ),
                                json_build_object(
                                 'type', 'Feature',
-                                'geometry', ST_AsGeoJSON(ride_line)::json)
+                                'geometry', json_build_object(
+                                              'type', 'LineString',
+                                              'coordinates', array_to_json(ride_line)
+                                            ))
                                ] AS feature_list,
                                json_build_object(
                                 'type', 'Feature',
@@ -197,7 +205,9 @@ def queryRidesRich(startTime, endTime):
                                ride."flowName" AS flow_name,
                                ride."flowIsToWork" AS flow_is_to_work
                          FROM {0} AS ride
-                         LEFT JOIN (SELECT "rideId", ST_MakeLine(array_agg(coordinate::geometry ORDER BY "idx")) AS ride_line
+                         LEFT JOIN (SELECT "rideId",
+                                       array_agg(json_build_array(ST_X(coordinate::geometry), ST_Y(coordinate::geometry), 0, to_json(timestamp))
+                                                 ORDER BY "idx") AS ride_line
                                     FROM {1}
                                     WHERE zone = 'main'
                                     GROUP BY "rideId") AS wp
