@@ -228,12 +228,15 @@ def wktPoint(lat, lon):
 
 def insertRawWaypoints(cur, rideId, requestId, waypoints):
     sql = """
-            INSERT INTO {} ("rideId", coordinate, timestamp, "roadType", speed, distance, "speedLimit", idx, zone, "requestId")
+            INSERT INTO {} ("rideId", coordinate, timestamp, "roadType", speed, distance, "speedLimit", idx, zone, "requestId", "pointJson")
             VALUES %s
           """.format(CibicResources.Postgres.WaypointsRaw)
     values = list((rideId, makeSqlPoint(wp['latitude'], wp['longitude']),
                     wp['timestamp'], wp['road_type'], wp['speed'], wp['distance'],
-                    wp['speed_limit'], wp['originalIdx'], wp['zone'], requestId) for wp in waypoints)
+                    wp['speed_limit'], wp['originalIdx'], wp['zone'], requestId,
+                    # Cache the JSON of the point with the timestamp.
+                    '[' + str(wp['longitude']) + ', ' + str(wp['latitude']) + ', 0, "' + wp['timestamp'] + '"]')
+                  for wp in waypoints)
     extras.execute_values(cur, sql, values)
     print('sql insert raw waypoints execute result: ' + str(cur.statusmessage))
 

@@ -98,8 +98,7 @@ def fetchRide(rideId):
                                ride."flowIsToWork" AS flow_is_to_work
                          FROM {0} AS ride
                          LEFT JOIN (SELECT "rideId",
-                                       array_agg(json_build_array(ST_X(coordinate::geometry), ST_Y(coordinate::geometry), 0, to_json(timestamp))
-                                                 ORDER BY "idx") AS ride_line
+                                       array_agg("pointJson" ORDER BY "idx") AS ride_line
                                     FROM {1}
                                     WHERE zone = 'main'
                                     GROUP BY "rideId") AS wp
@@ -206,8 +205,7 @@ def queryRidesRich(startTime, endTime):
                                ride."flowIsToWork" AS flow_is_to_work
                          FROM {0} AS ride
                          LEFT JOIN (SELECT "rideId",
-                                       array_agg(json_build_array(ST_X(coordinate::geometry), ST_Y(coordinate::geometry), 0, to_json(timestamp))
-                                                 ORDER BY "idx") AS ride_line
+                                       array_agg("pointJson" ORDER BY "idx") AS ride_line
                                     FROM {1}
                                     WHERE zone = 'main'
                                     GROUP BY "rideId") AS wp
