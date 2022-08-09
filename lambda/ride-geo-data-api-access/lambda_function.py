@@ -62,11 +62,11 @@ def fetchRide(rideId):
                                      'flow', flow,
                                      'flowName', flow_name,
                                      'flowIsToWork', flow_is_to_work,
-                                     'flowJoinPointsJson', flow_join_points_json,
-                                     'flowLeavePointsJson', flow_leave_points_json,
+                                     'flowJoinPoints', flow_join_points_json,
+                                     'flowLeavePoints', flow_leave_points_json,
                                      'pod', pod,
                                      'podName', pod_name,
-                                     'podMemberJson', pod_member_json,
+                                     'podMember', pod_member_json,
                                      'flowPath', flow_path
                                    )
                    )
@@ -180,11 +180,11 @@ def queryRidesRich(startTime, endTime):
                                      'flow', flow,
                                      'flowName', flow_name,
                                      'flowIsToWork', flow_is_to_work,
-                                     'flowJoinPointsJson', flow_join_points_json,
-                                     'flowLeavePointsJson', flow_leave_points_json,
+                                     'flowJoinPoints', flow_join_points_json,
+                                     'flowLeavePoints', flow_leave_points_json,
                                      'pod', pod,
                                      'podName', pod_name,
-                                     'podMemberJson', pod_member_json,
+                                     'podMember', pod_member_json,
                                      'flowPath', flow_path
                                    )
                    )
