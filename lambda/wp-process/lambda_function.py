@@ -62,10 +62,15 @@ def lambda_handler(event, context):
                 userId = rideData.get('userId')
                 role = rideData.get('role')
                 flow = rideData.get('flow')
+                flowName = None
+                flowIsToWork = None
+                pod = None
+                podName = None
                 if flowData != None:
                     flowName = flowData.get('name')
                     flowIsToWork = flowData.get('isToWork')
-                insertRide(cur, rideId, requestId, userId, role, flow, flowName, flowIsToWork, startZone, endZone)
+                    (pod, podName) = getPodForUser(flowData, userId)
+                insertRide(cur, rideId, requestId, userId, role, flow, flowName, flowIsToWork, pod, podName, startZone, endZone)
                 # insert raw waypoints
                 insertRawWaypoints(cur, rideId, requestId, waypoints)
                 # Insert the flow waypoints which may change over time for the same flow ID.
@@ -185,13 +190,14 @@ def splitWaypoints(radius, waypoints):
         return (startZone, endZone, mainZone)
     return ([],[],[])
 
-def insertRide(cur, rideId, requestId, userId, role, flow, flowName, flowIsToWork, startZone, endZone):
+def insertRide(cur, rideId, requestId, userId, role, flow, flowName, flowIsToWork, pod, podName, startZone, endZone):
     # generate start / end geometry
     cLat1, cLon1, rad1 = obfuscateWaypoints(startZone)
     cLat2, cLon2, rad2 = obfuscateWaypoints(endZone)
     sqlInsertRide = """
-                    INSERT INTO {}("rideId", "requestId", "startTime", "endTime", "userId", "role", "flow", "flowName", "flowIsToWork", "startZone", "endZone")
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s,
+                    INSERT INTO {}("rideId", "requestId", "startTime", "endTime", "userId", "role", "flow", "flowName", "flowIsToWork", "pod", "podName",
+                                   "startZone", "endZone")
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                             ST_Buffer(ST_GeomFromText('{}',4326)::geography,
                                         {},'quad_segs=16')::geometry,
                             ST_Buffer(ST_GeomFromText('{}',4326)::geography,
@@ -200,7 +206,7 @@ def insertRide(cur, rideId, requestId, userId, role, flow, flowName, flowIsToWor
                     """.format(CibicResources.Postgres.Rides,
                                 wktPoint(cLat1, cLon1), rad1,
                                 wktPoint(cLat2, cLon2), rad2)
-    cur.execute(sqlInsertRide, (rideId, requestId, startZone[0]['timestamp'], endZone[-1]['timestamp'], userId, role, flow, flowName, flowIsToWork))
+    cur.execute(sqlInsertRide, (rideId, requestId, startZone[0]['timestamp'], endZone[-1]['timestamp'], userId, role, flow, flowName, flowIsToWork, pod, podName))
 
 def obfuscateWaypoints(waypoints):
     centerLat = 0
@@ -255,3 +261,19 @@ def insertFlowWaypoints(cur, rideId, requestId, flow, waypoints):
 
 def makeSqlPoint(lat, lon):
     return str(lon) + ', ' + str(lat)
+
+def getPodForUser(flow, userId):
+    """
+    Search the flow for the first pod which mentions the userId and return
+    (podId, podName). If not found, return (None, None)
+    This is similar to the same function in get-user-enrollments.
+    """
+    if 'pods' in flow:
+        for pod in flow['pods']:
+            if 'members' in pod:
+                for member in pod['members']:
+                    if member.get('username') == userId:
+                        return (pod.get('id'), pod.get('name'))
+
+    # Not found
+    return (None, None)
