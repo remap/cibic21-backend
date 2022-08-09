@@ -64,13 +64,27 @@ def lambda_handler(event, context):
                 flow = rideData.get('flow')
                 flowName = None
                 flowIsToWork = None
+                flowJoinPointsJson = None
+                flowLeavePointsJson = None
                 pod = None
                 podName = None
+                podMemberJson = None
+                
                 if flowData != None:
                     flowName = flowData.get('name')
                     flowIsToWork = flowData.get('isToWork')
-                    (pod, podName) = getPodForUser(flowData, userId)
-                insertRide(cur, rideId, requestId, userId, role, flow, flowName, flowIsToWork, pod, podName, startZone, endZone)
+                    # Store the join and leave points as JSON as-is.
+                    if 'joinPoints' in flowData:
+                        flowJoinPointsJson = json.dumps(flowData['joinPoints'])
+                    if 'leavePoints' in flowData:
+                        flowLeavePointsJson = json.dumps(flowData['leavePoints'])
+
+                    (pod, podName, podMember) = getPodForUser(flowData, userId)
+                    if podMember != None:
+                        # Store the pod member as JSON as-is.
+                        podMemberJson = json.dumps(podMember)
+                insertRide(cur, rideId, requestId, userId, role, flow, flowName, flowIsToWork,
+                           flowJoinPointsJson, flowLeavePointsJson, pod, podName, podMemberJson, startZone, endZone)
                 # insert raw waypoints
                 insertRawWaypoints(cur, rideId, requestId, waypoints)
                 # Insert the flow waypoints which may change over time for the same flow ID.
@@ -190,14 +204,15 @@ def splitWaypoints(radius, waypoints):
         return (startZone, endZone, mainZone)
     return ([],[],[])
 
-def insertRide(cur, rideId, requestId, userId, role, flow, flowName, flowIsToWork, pod, podName, startZone, endZone):
+def insertRide(cur, rideId, requestId, userId, role, flow, flowName, flowIsToWork,
+               flowJoinPointsJson, flowLeavePointsJson, pod, podName, podMemberJson, startZone, endZone):
     # generate start / end geometry
     cLat1, cLon1, rad1 = obfuscateWaypoints(startZone)
     cLat2, cLon2, rad2 = obfuscateWaypoints(endZone)
     sqlInsertRide = """
-                    INSERT INTO {}("rideId", "requestId", "startTime", "endTime", "userId", "role", "flow", "flowName", "flowIsToWork", "pod", "podName",
-                                   "startZone", "endZone")
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                    INSERT INTO {}("rideId", "requestId", "startTime", "endTime", "userId", "role", "flow", "flowName", "flowIsToWork",
+                                   "flowJoinPointsJson", "flowLeavePointsJson", "pod", "podName", "podMemberJson", "startZone", "endZone")
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                             ST_Buffer(ST_GeomFromText('{}',4326)::geography,
                                         {},'quad_segs=16')::geometry,
                             ST_Buffer(ST_GeomFromText('{}',4326)::geography,
@@ -206,7 +221,8 @@ def insertRide(cur, rideId, requestId, userId, role, flow, flowName, flowIsToWor
                     """.format(CibicResources.Postgres.Rides,
                                 wktPoint(cLat1, cLon1), rad1,
                                 wktPoint(cLat2, cLon2), rad2)
-    cur.execute(sqlInsertRide, (rideId, requestId, startZone[0]['timestamp'], endZone[-1]['timestamp'], userId, role, flow, flowName, flowIsToWork, pod, podName))
+    cur.execute(sqlInsertRide, (rideId, requestId, startZone[0]['timestamp'], endZone[-1]['timestamp'], userId, role, flow, flowName, flowIsToWork,
+                                flowJoinPointsJson, flowLeavePointsJson, pod, podName, podMemberJson))
 
 def obfuscateWaypoints(waypoints):
     centerLat = 0
@@ -265,7 +281,8 @@ def makeSqlPoint(lat, lon):
 def getPodForUser(flow, userId):
     """
     Search the flow for the first pod which mentions the userId and return
-    (podId, podName). If not found, return (None, None)
+    (podId, podName, podMember) where podMember is the entire member object.
+    If not found, return (None, None, None).
     This is similar to the same function in get-user-enrollments.
     """
     if 'pods' in flow:
@@ -273,7 +290,7 @@ def getPodForUser(flow, userId):
             if 'members' in pod:
                 for member in pod['members']:
                     if member.get('username') == userId:
-                        return (pod.get('id'), pod.get('name'))
+                        return (pod.get('id'), pod.get('name'), member)
 
     # Not found
-    return (None, None)
+    return (None, None, None)
