@@ -8,6 +8,7 @@
 
 import boto3
 from boto3.dynamodb.conditions import Attr
+from urllib.parse import quote
 from common.cibic_common import *
 
 # Python 3.8 lambda environment does not have requests https://stackoverflow.com/questions/58952947/import-requests-on-aws-lambda-for-python-3-8
@@ -59,6 +60,9 @@ def lambda_handler(event, context):
             # The user has filled out a survey. Get the outstanding survey.
             surveysUrl = outstandingSurveysUrl
         reply.update(getAvailableSurvey(surveysUrl, role))
+        if reply['availableSurveyUrl'] != '':
+            # Put the userId and role in the query.
+            reply['availableSurveyUrl'] += '?userId=' + quote(userId, safe='') + '&role=' + quote(role, safe='')
 
         return lambdaReply(200, reply)
     except:
