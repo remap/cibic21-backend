@@ -96,29 +96,31 @@ def moderateJournalEntry(body):
                 if 'Entities' in comprehendResponse:
                     values[i] = redact(text, comprehendResponse['Entities'])
 
-    fieldName = 'image'
-    imageModerationLabels = None
+    fieldName = 'images'
+    imagesModerationLabels = []
     if fieldName in body and body[fieldName] != None and body[fieldName] != "":
-        imagePath = body[fieldName]
+        for imagePath in body[fieldName]:
+            moderationLabels = None
+            if not s3HasFile(CibicResources.S3Bucket.JournalingImages, imagePath,
+                             imageUploadTimeoutSeconds):
+                print('Error: After ' + str(imageUploadTimeoutSeconds) +
+                  ' second timeout, cannot find S3 journal image: ' + imagePath)
+                # Leave 'moderationLabels' as null, meaning "don't know".
+            else:
+                # Check the image directly in S3.
+                response = rekognition.detect_moderation_labels(
+                    Image = { 'S3Object': {
+                      'Bucket': CibicResources.S3Bucket.JournalingImages,
+                      'Name': imagePath
+                    }}
+                )
+                if 'ModerationLabels' in response:
+                    # This may be the empty list.
+                    moderationLabels = response['ModerationLabels']
+                    print('Image "{}". ModerationLabels: {}'.format(imagePath, moderationLabels))
 
-        if not s3HasFile(CibicResources.S3Bucket.JournalingImages, imagePath,
-                         imageUploadTimeoutSeconds):
-            print('Error: After ' + str(imageUploadTimeoutSeconds) +
-              ' second timeout, cannot find S3 journal image: ' + imagePath)
-            # Leave 'imageModerationLabels' as null, meaning "don't know".
-        else:
-            # Check the image directly in S3.
-            response = rekognition.detect_moderation_labels(
-                Image = { 'S3Object': {
-                  'Bucket': CibicResources.S3Bucket.JournalingImages,
-                  'Name': imagePath
-                }}
-            )
-            if 'ModerationLabels' in response:
-                # This may be the empty list.
-                imageModerationLabels = response['ModerationLabels']
-                print('Image "{}". ModerationLabels: {}'.format(imagePath, imageModerationLabels))
-    body['imageModerationLabels'] = imageModerationLabels
+            imagesModerationLabels.append({'image': imagePath, 'moderationLabels': moderationLabels})
+    body['imagesModerationLabels'] = imagesModerationLabels
 
 def redact(text, entities):
     """
