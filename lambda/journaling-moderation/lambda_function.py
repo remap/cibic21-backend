@@ -15,6 +15,7 @@ def lambda_handler(event, context):
     moderatedRequestsTable = dynamoDbResource.Table(CibicResources.DynamoDB.ModeratedJournalingRequests)
     timestamp = ''
     requestId = ''
+    journalType = ''
     userId = ''
     role = ''
     body = ''
@@ -30,6 +31,8 @@ def lambda_handler(event, context):
             timestamp = event['timestamp']
             requestId = event['requestId']
             body = event['body']
+            if 'type' in body:
+                journalType = body['type']
             if 'userId' in body:
                 userId = body['userId']
             if 'role' in body:
@@ -53,6 +56,7 @@ def lambda_handler(event, context):
         moderatedRequestsTable.put_item(Item = {
             'timestamp' : timestamp,
             'requestId': requestId,
+            'type': journalType,
             'userId': userId,
             'role': role,
             'body' : json.dumps(body),
