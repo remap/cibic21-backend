@@ -38,6 +38,7 @@ def lambda_handler(event, context):
             # Create the initial record.
             journalsTable.put_item(Item = {
               'timestamp': metadataKey,
+              'requestId': 'metadata',
               'body': '{ "type": "metadata" }',
               lastLocationScanTimeKey: lastLocationScanTime
             })
