@@ -93,9 +93,12 @@ def isRideDataValid(body):
 
 def makeRideData(body):
     # for example, throw out data that we don't need
+    flowId = None
+    if body.get('flow') != None:
+        flowId = body['flow'].get('_id') # TODO: Should this be 'id'?
     rideData = {
         'id' : body['id'],
-        'flow': body.get('flow', {}).get('_id'), # TODO: Should this be 'id'?
+        'flow': flowId
         }
 
     if 'cibicUser' in body:
