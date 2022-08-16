@@ -39,7 +39,7 @@ def lambda_handler(event, context):
             journalsTable.put_item(Item = {
               'timestamp': metadataKey,
               'requestId': 'metadata',
-              'body': '{ "type": "metadata" }',
+              'body': '{ "type": "metadata", "userId": "metadata" }',
               lastLocationScanTimeKey: lastLocationScanTime
             })
         if 'Item' in response:
