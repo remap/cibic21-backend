@@ -1,7 +1,18 @@
+# Process the waypoints from the ride data: Split into start, end and main zones
+# and store in WaypointsRaw with these zone tags. (Send the derivedDataReady SNS.)
+# From the ride data, also extract the userId, flow, pod, etc. and store in the
+# Rides table. If the user role is 'steward', fetch and include the weather data.
+# Also store the flow waypoints in RideFlowWaypoints. Send the waypointsReady SNS.
+
 from common.cibic_common import *
 import os
 import psycopg2
 from psycopg2 import extras # for fast batch insert, see https://www.psycopg.org/docs/extras.html#fast-exec
+
+# Python 3.8 lambda environment does not have requests https://stackoverflow.com/questions/58952947/import-requests-on-aws-lambda-for-python-3-8
+# for a fix using Lambda Layers, see https://dev.to/razcodes/how-to-create-a-lambda-layer-in-aws-106m
+import requests
+from requests.auth import HTTPBasicAuth
 
 snsClient = boto3.client('sns')
 
@@ -12,6 +23,9 @@ pgPassword = os.environ['ENV_VAR_POSTGRES_PASSWORD']
 pgServer = os.environ['ENV_VAR_POSTGRES_SERVER']
 derivedDataReadyTopic = os.environ['ENV_SNS_DERIVED_DATA_READY']
 waypointsReadyTopic = os.environ['ENV_SNS_WAYPOINTS_READY']
+accuweatherApiKey = os.environ['ENV_VAR_ACCUWEATHER_API_KEY']
+accuweatherLocationUrl = os.environ['ENV_VAR_ACCUWEATHER_LOCATION_URL']
+accuweatherConditionsUrl = os.environ['ENV_VAR_ACCUWEATHER_CONDITIONS_URL']
 
 # process waypoints data
 # expected payload:
@@ -83,8 +97,15 @@ def lambda_handler(event, context):
                     if podMember != None:
                         # Store the pod member as JSON as-is.
                         podMemberJson = json.dumps(podMember)
+
+                weatherJson = None
+                if role == 'steward':
+                    # For a steward include the weather (at the start waypoint).
+                    weatherJson = fetchWeatherJson(startZone[0]['latitude'], startZone[0]['longitude'])
+
                 insertRide(cur, rideId, requestId, userId, role, flow, flowName, flowIsToWork,
-                           flowJoinPointsJson, flowLeavePointsJson, pod, podName, podMemberJson, startZone, endZone)
+                           flowJoinPointsJson, flowLeavePointsJson, pod, podName, podMemberJson, weatherJson,
+                           startZone, endZone)
                 # insert raw waypoints
                 insertRawWaypoints(cur, rideId, requestId, waypoints)
                 # Insert the flow waypoints which may change over time for the same flow ID.
@@ -205,14 +226,16 @@ def splitWaypoints(radius, waypoints):
     return ([],[],[])
 
 def insertRide(cur, rideId, requestId, userId, role, flow, flowName, flowIsToWork,
-               flowJoinPointsJson, flowLeavePointsJson, pod, podName, podMemberJson, startZone, endZone):
+               flowJoinPointsJson, flowLeavePointsJson, pod, podName, podMemberJson, weatherJson,
+               startZone, endZone):
     # generate start / end geometry
     cLat1, cLon1, rad1 = obfuscateWaypoints(startZone)
     cLat2, cLon2, rad2 = obfuscateWaypoints(endZone)
     sqlInsertRide = """
                     INSERT INTO {}("rideId", "requestId", "startTime", "endTime", "userId", "role", "flow", "flowName", "flowIsToWork",
-                                   "flowJoinPointsJson", "flowLeavePointsJson", "pod", "podName", "podMemberJson", "startZone", "endZone")
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                                   "flowJoinPointsJson", "flowLeavePointsJson", "pod", "podName", "podMemberJson", "weatherJson",
+                                   "startZone", "endZone")
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                             ST_Buffer(ST_GeomFromText('{}',4326)::geography,
                                         {},'quad_segs=16')::geometry,
                             ST_Buffer(ST_GeomFromText('{}',4326)::geography,
@@ -222,7 +245,7 @@ def insertRide(cur, rideId, requestId, userId, role, flow, flowName, flowIsToWor
                                 wktPoint(cLat1, cLon1), rad1,
                                 wktPoint(cLat2, cLon2), rad2)
     cur.execute(sqlInsertRide, (rideId, requestId, startZone[0]['timestamp'], endZone[-1]['timestamp'], userId, role, flow, flowName, flowIsToWork,
-                                flowJoinPointsJson, flowLeavePointsJson, pod, podName, podMemberJson))
+                                flowJoinPointsJson, flowLeavePointsJson, pod, podName, podMemberJson, weatherJson))
 
 def obfuscateWaypoints(waypoints):
     centerLat = 0
@@ -294,3 +317,34 @@ def getPodForUser(flow, userId):
 
     # Not found
     return (None, None, None)
+
+def fetchWeatherJson(lat, lon):
+    """
+    Use the lat, lon to fetch the Accuweather location key, and use that to
+    fetch the weather conditions. Return a JSON string of the entire response.
+    If there is an error, print the error and return None.
+    """
+    # Fetch the location key.
+    response = requests.get(
+        '{}?apikey={}&q={}%2C{}'.format(accuweatherLocationUrl, accuweatherApiKey, lat, lon))
+    if response.status_code/100 == 2:
+        locationKey = response.json()['Key']
+    else:
+        err = 'Accuweather location API request failed with code {}'.format(response.status_code)
+        print(err)
+        return None
+
+    # Fetch the weather conditions.
+    response = requests.get(
+        '{}/{}?apikey={}&language=en-us'.format(accuweatherConditionsUrl, locationKey, accuweatherApiKey))
+    if response.status_code/100 == 2:
+        if len(response.json()) == 1:
+            return json.dumps(response.json()[0])
+        else:
+            err = 'Expected 1 Accuweather result. Got {}: {}'.format(len(response.json()), response.json())
+            print(err)
+            return None
+    else:
+        err = 'Accuweather conditions API request failed with code {}'.format(response.status_code)
+        print(err)
+        return None
