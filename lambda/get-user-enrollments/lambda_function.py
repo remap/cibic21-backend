@@ -37,8 +37,15 @@ def lambda_handler(event, context):
     try:
         print('get-user-enrollments event data: ' + str(event))
 
-        consentedUsers = getConsentedUsers()
-
+        consentedUsersByEmail = {}
+        consentedUsersByName = getConsentedUsers()
+        if consentedUsersByName != None:
+            # Fill consentedUsersByEmail where the key is the lower-case email.
+            for _, consentedUser in consentedUsersByName.items():
+                consentedEmail = consentedUser.get('email')
+                if consentedEmail != None:
+                    consentedUsersByEmail[consentedEmail.lower()] = consentedUser
+              
         # Fetch from the enrollments endpoint.
         response = requests.request("GET", enrollmentsEndpointUrl,
           auth=HTTPBasicAuth(enrollmentsEndpointUsername, enrollmentsEndpointPassword))
@@ -101,11 +108,19 @@ def lambda_handler(event, context):
                     continue
 
                 consentedUser = None
-                if consentedUsers != None and displayName != None:
-                    consentedUser = consentedUsers.get(getCanonicalUserName(displayName))
+                # First try to match by email.
+                if email != None:
+                    consentedUser = consentedUsersByEmail.get(email.lower())
                     if consentedUser != None:
                         # Save for checking later.
                         consentedUser['inserted'] = True
+                if consentedUser == None:
+                    # Now try to match by canonical name.
+                    if consentedUsersByName != None and displayName != None:
+                        consentedUser = consentedUsersByName.get(getCanonicalUserName(displayName))
+                        if consentedUser != None:
+                            # Save for checking later.
+                            consentedUser['inserted'] = True
 
                 insertEnrollment(cur, userId, role, active, displayName, email, outwardFlowId, outwardFlowName,
                   returnFlowId, returnFlowName, outwardPodId, outwardPodName,
@@ -113,8 +128,8 @@ def lambda_handler(event, context):
 
             # Check for consented users which didn't match an enrollment.
             noEnrollmentCount = 0
-            if consentedUsers != None:
-                for _, consentedUser in consentedUsers.items():
+            if consentedUsersByName != None:
+                for _, consentedUser in consentedUsersByName.items():
                     if consentedUser.get('inserted') == True:
                         continue
 
