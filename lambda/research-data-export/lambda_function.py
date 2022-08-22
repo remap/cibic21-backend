@@ -15,13 +15,13 @@ pgServer = os.environ['ENV_VAR_POSTGRES_SERVER']
 pgDbName = os.environ['ENV_VAR_POSTGRES_DB']
 pgUsername = os.environ['ENV_VAR_POSTGRES_USER']
 pgPassword = os.environ['ENV_VAR_POSTGRES_PASSWORD']
-cibicEmail = 'support@cibic.bike'
 
 dynamoDbResource = boto3.resource('dynamodb')
 sesClient = boto3.client('ses')
-debug_s3 = boto3.client('s3')
 
 def lambda_handler(event, context):
+    fromEmail = os.environ['ENV_VAR_FROM_EMAIL']
+    toEmail = os.environ['ENV_VAR_TO_EMAIL']
     journalsTable = dynamoDbResource.Table(CibicResources.DynamoDB.JournalingRequests)
 
     try:
@@ -45,6 +45,7 @@ def lambda_handler(event, context):
           'What color best expresses how you feel about your last CiBiC ride?'
         ]
         expectedSatisfactionOptions = [ 'Terrible', 'Bad', 'Okay', 'Good', 'Great' ]
+        expectedColorOptions = [ 'blue', 'yellow', 'magenta', 'light blue', 'green', 'pink' ]
 
         for item in items:
             try:
@@ -77,18 +78,23 @@ def lambda_handler(event, context):
                 prompt = journal[i]['prompt']['en']
                 if prompt != expectedPrompts[i]:
                     # The journal question has changed.
+                    print('caught exception: For prompt #' + str(i) + ' expected "' +
+                          expectedPrompts[i] + '", got "' + prompt + '"')
                     row.append("")
                     continue
 
                 answer = answers[i]
-                if prompt == 'Rate your commute satisfaction:':
+                if answer == None or answer == '':
+                    answer = ''
+                elif prompt == 'Rate your commute satisfaction:':
                     answerIndex = int(answer)
                     answerText = journal[i]['options'][answerIndex]['label']['en']
                     expectedAnswerText = expectedSatisfactionOptions[answerIndex]
                     if answerText != expectedAnswerText:
                         # The prompt at the index for this answer doesn't match the expected prompt.
+                        print('caught exception: For prompt #' + str(i) + ', answer #' + str(answerIndex) +
+                              ' expected "' + expectedAnswerText + '", got "' + answerText + '"')
                         answer = ''
-
                 elif prompt == 'Select all the characteristics of your ride:':
                     formattedAnswer = ''
                     for item in answer:
@@ -97,6 +103,15 @@ def lambda_handler(event, context):
                         formattedAnswer += item.get('en', '')
 
                     answer = formattedAnswer
+                elif prompt == 'What color best expresses how you feel about your last CiBiC ride?':
+                    answerIndex = int(answer)
+                    answerText = journal[i]['options'][answerIndex]
+                    expectedAnswerText = expectedColorOptions[answerIndex]
+                    if answerText != expectedAnswerText:
+                        # The prompt at the index for this answer doesn't match the expected prompt.
+                        print('caught exception: For prompt #' + str(i) + ', answer #' + str(answerIndex) +
+                              ' expected "' + expectedAnswerText + '", got "' + answerText + '"')
+                        answer = ''
 
                 row.append(answer)
 
@@ -107,6 +122,9 @@ def lambda_handler(event, context):
         for i in range(len(expectedSatisfactionOptions)):
             headers[0] += (', ' if i > 0 else ' ') + str(i) + ' = ' + expectedSatisfactionOptions[i]
         headers[3] = 'Color Wheel (for interpretive cartography purposes)'
+        # Show the color options numbers in the header
+        for i in range(len(expectedColorOptions)):
+            headers[3] += (', ' if i > 0 else ' ') + str(i) + ' = ' + expectedColorOptions[i]
 
         frame1 = pd.DataFrame(
             rows,
@@ -122,7 +140,7 @@ def lambda_handler(event, context):
         ## TODO: When done testing, remove Lambda permissions to S3.
         #debug_s3.put_object(Bucket=CibicResources.S3Bucket.JournalingImages,
         #                    Key='CiBiC_Data_Report.xlsx', Body=excel)
-        emailAttachment(cibicEmail, 'jefft0@remap.ucla.edu',
+        emailAttachment(fromEmail, toEmail,
           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
           'CiBiC_Data_Report.xlsx', excel)
 
