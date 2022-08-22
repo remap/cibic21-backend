@@ -47,6 +47,8 @@ def lambda_handler(event, context):
         expectedSatisfactionOptions = [ 'Terrible', 'Bad', 'Okay', 'Good', 'Great' ]
         expectedColorOptions = [ 'blue', 'yellow', 'magenta', 'light blue', 'green', 'pink' ]
 
+        conn = psycopg2.connect(host=pgServer, database=pgDbName,
+                                user=pgUsername, password=pgPassword)
         for item in items:
             try:
                 body = json.loads(item['body'])
@@ -61,18 +63,51 @@ def lambda_handler(event, context):
                 # Assume that a short user ID is for testing.
                 continue
 
+            userId = body['userId']
+            role = body['role']
+
             # Pandas wants us to strip the time zone from the datetime.
             timestamp = datetime.fromisoformat(item['timestamp']).replace(tzinfo=None)
             if timestamp < datetime.fromisoformat('2022-08-01T00:00:00'):
                 # Older journal entries have a different format.
                 continue
 
-            row = [body['userId'], body['role'], timestamp]
+            # Fetch the latest ride before timestamp for the userId and role.
+            sql = """
+SELECT pod, "podName", flow, "flowName", "rideId"
+  FROM {0}
+	WHERE "userId" = '{1}' AND role = '{2}' AND "startTime" <= '{3}'
+	ORDER BY "startTime" DESC
+	LIMIT 1;
+            """.format(CibicResources.Postgres.Rides, userId, role,
+                       timestamp.astimezone().strftime("%Y-%m-%d %H:%M:%S%z"))
+            cur = conn.cursor()
+            cur.execute(sql)
+
+            pod = None
+            podName = None
+            flow = None
+            flowName = None
+            rideId = None
+
+            # There should only be one result, so use fetchone.
+            ride = cur.fetchone()
+            if ride != None:
+                pod = ride[0]
+                podName = ride[1]
+                flow = ride[2]
+                flowName = ride[3]
+                rideId = ride[4]
+
+            conn.commit()
+            cur.close()
+
+            row = [userId, role, timestamp, pod, podName, flow, flowName, rideId]
                    
             for i in range(len(expectedPrompts)):
                 if i >= len(answers) or i >= len(journal):
                     # The journal doesn't have enough responses.
-                    row.append('')
+                    row.append(None)
                     continue
 
                 prompt = journal[i]['prompt']['en']
@@ -85,7 +120,7 @@ def lambda_handler(event, context):
 
                 answer = answers[i]
                 if answer == None or answer == '':
-                    answer = ''
+                    answer = None
                 elif prompt == 'Rate your commute satisfaction:':
                     answerIndex = int(answer)
                     answerText = journal[i]['options'][answerIndex]['label']['en']
@@ -94,7 +129,7 @@ def lambda_handler(event, context):
                         # The prompt at the index for this answer doesn't match the expected prompt.
                         print('caught exception: For prompt #' + str(i) + ', answer #' + str(answerIndex) +
                               ' expected "' + expectedAnswerText + '", got "' + answerText + '"')
-                        answer = ''
+                        answer = None
                 elif prompt == 'Select all the characteristics of your ride:':
                     formattedAnswer = ''
                     for item in answer:
@@ -111,7 +146,7 @@ def lambda_handler(event, context):
                         # The prompt at the index for this answer doesn't match the expected prompt.
                         print('caught exception: For prompt #' + str(i) + ', answer #' + str(answerIndex) +
                               ' expected "' + expectedAnswerText + '", got "' + answerText + '"')
-                        answer = ''
+                        answer = None
 
                 row.append(answer)
 
@@ -128,7 +163,8 @@ def lambda_handler(event, context):
 
         frame1 = pd.DataFrame(
             rows,
-            columns=(['User ID', 'Role', 'Date (UTC)'] + headers))
+            columns=(['User ID', 'Role', 'Date (UTC)', 'Pod ID', 'Pod Name',
+                      'Flow ID', 'Flow Name', 'Ride ID'] + headers))
         #frame2 = pd.DataFrame([[1, 2], [3, 4]], columns=['col 1', 'col 2'])
 
         with io.BytesIO() as output:
