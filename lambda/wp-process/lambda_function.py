@@ -76,6 +76,7 @@ def lambda_handler(event, context):
                 userId = rideData.get('userId')
                 role = rideData.get('role')
                 flow = rideData.get('flow')
+                commute = rideData.get('commute')
                 flowName = None
                 flowIsToWork = None
                 flowJoinPointsJson = None
@@ -103,7 +104,7 @@ def lambda_handler(event, context):
                     # For a steward include the weather (at the start waypoint).
                     weatherJson = fetchWeatherJson(startZone[0]['latitude'], startZone[0]['longitude'])
 
-                insertRide(cur, rideId, requestId, userId, role, flow, flowName, flowIsToWork,
+                insertRide(cur, rideId, requestId, userId, role, flow, flowName, flowIsToWork, commute,
                            flowJoinPointsJson, flowLeavePointsJson, pod, podName, podMemberJson, weatherJson,
                            startZone, endZone)
                 # insert raw waypoints
@@ -225,17 +226,17 @@ def splitWaypoints(radius, waypoints):
         return (startZone, endZone, mainZone)
     return ([],[],[])
 
-def insertRide(cur, rideId, requestId, userId, role, flow, flowName, flowIsToWork,
+def insertRide(cur, rideId, requestId, userId, role, flow, flowName, flowIsToWork, commute,
                flowJoinPointsJson, flowLeavePointsJson, pod, podName, podMemberJson, weatherJson,
                startZone, endZone):
     # generate start / end geometry
     cLat1, cLon1, rad1 = obfuscateWaypoints(startZone)
     cLat2, cLon2, rad2 = obfuscateWaypoints(endZone)
     sqlInsertRide = """
-                    INSERT INTO {}("rideId", "requestId", "startTime", "endTime", "userId", "role", "flow", "flowName", "flowIsToWork",
+                    INSERT INTO {}("rideId", "requestId", "startTime", "endTime", "userId", "role", "flow", "flowName", "flowIsToWork", "commute",
                                    "flowJoinPointsJson", "flowLeavePointsJson", "pod", "podName", "podMemberJson", "weatherJson",
                                    "startZone", "endZone")
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                             ST_Buffer(ST_GeomFromText('{}',4326)::geography,
                                         {},'quad_segs=16')::geometry,
                             ST_Buffer(ST_GeomFromText('{}',4326)::geography,
@@ -244,7 +245,7 @@ def insertRide(cur, rideId, requestId, userId, role, flow, flowName, flowIsToWor
                     """.format(CibicResources.Postgres.Rides,
                                 wktPoint(cLat1, cLon1), rad1,
                                 wktPoint(cLat2, cLon2), rad2)
-    cur.execute(sqlInsertRide, (rideId, requestId, startZone[0]['timestamp'], endZone[-1]['timestamp'], userId, role, flow, flowName, flowIsToWork,
+    cur.execute(sqlInsertRide, (rideId, requestId, startZone[0]['timestamp'], endZone[-1]['timestamp'], userId, role, flow, flowName, flowIsToWork, commute,
                                 flowJoinPointsJson, flowLeavePointsJson, pod, podName, podMemberJson, weatherJson))
 
 def obfuscateWaypoints(waypoints):

@@ -62,6 +62,7 @@ def fetchRide(rideId):
                                      'flow', flow,
                                      'flowName', flow_name,
                                      'flowIsToWork', flow_is_to_work,
+                                     'commute', commute,
                                      'flowJoinPoints', flow_join_points_json,
                                      'flowLeavePoints', flow_leave_points_json,
                                      'pod', pod,
@@ -89,7 +90,7 @@ def fetchRide(rideId):
                                json_build_object(
                                 'type', 'Feature',
                                 'geometry', ST_AsGeoJSON(flow_line)::json) AS flow_path,
-                               rid, start_time, end_time, user_id, role, flow, flow_name, flow_is_to_work,
+                               rid, start_time, end_time, user_id, role, flow, flow_name, flow_is_to_work, commute,
                                flow_join_points_json, flow_leave_points_json, pod, pod_name, pod_member_json, weather_json
                   FROM (SELECT ride."startZone" AS start_zone,
                                ride."endZone" AS end_zone,
@@ -103,6 +104,7 @@ def fetchRide(rideId):
                                ride."flow" AS flow,
                                ride."flowName" AS flow_name,
                                ride."flowIsToWork" AS flow_is_to_work,
+                               ride."commute" AS commute,
                                ride."flowJoinPointsJson" AS flow_join_points_json,
                                ride."flowLeavePointsJson" AS flow_leave_points_json,
                                ride."pod" AS pod,
@@ -182,6 +184,7 @@ def queryRidesRich(startTime, endTime):
                                      'flow', flow,
                                      'flowName', flow_name,
                                      'flowIsToWork', flow_is_to_work,
+                                     'commute', commute,
                                      'flowJoinPoints', flow_join_points_json,
                                      'flowLeavePoints', flow_leave_points_json,
                                      'pod', pod,
@@ -209,7 +212,7 @@ def queryRidesRich(startTime, endTime):
                                json_build_object(
                                 'type', 'Feature',
                                 'geometry', ST_AsGeoJSON(flow_line)::json) AS flow_path,
-                               rid, start_time, end_time, user_id, role, flow, flow_name, flow_is_to_work,
+                               rid, start_time, end_time, user_id, role, flow, flow_name, flow_is_to_work, commute,
                                flow_join_points_json, flow_leave_points_json, pod, pod_name, pod_member_json, weather_json
                   FROM (SELECT ride."startZone" AS start_zone,
                                ride."endZone" AS end_zone,
@@ -223,6 +226,7 @@ def queryRidesRich(startTime, endTime):
                                ride."flow" AS flow,
                                ride."flowName" AS flow_name,
                                ride."flowIsToWork" AS flow_is_to_work,
+                               ride."commute" AS commute,
                                ride."flowJoinPointsJson" AS flow_join_points_json,
                                ride."flowLeavePointsJson" AS flow_leave_points_json,
                                ride."pod" AS pod,
