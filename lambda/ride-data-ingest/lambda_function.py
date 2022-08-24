@@ -98,6 +98,7 @@ def makeRideData(body):
         flowId = body['flow'].get('_id') # TODO: Should this be 'id'?
     rideData = {
         'id' : body['id'],
+        'commute' : body.get('commute'),
         'flow': flowId
         }
 
