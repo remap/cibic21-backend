@@ -21,12 +21,13 @@ def lambda_handler(event, context):
         cur = conn.cursor()
 
         sql = """
-          SELECT "userId", "role", "active", "displayName", "email",
+          SELECT "userId", role, active, "displayName", email,
             "consentedName", "consentedEmail", "consentedPhone", to_json("consentedTime"),
             "outwardFlowName", "outwardFlowId", "returnFlowName", "returnFlowId",
             "outwardPodName", "outwardPodId", "returnPodName", "returnPodId",
             "homeAddressText", "homeFullAddress", "homeZipCode", "homeCoordinate", "homeGeofenceRadius",
-            "workAddressText", "workFullAddress", "workZipCode", "workCoordinate", "workGeofenceRadius"
+            "workAddressText", "workFullAddress", "workZipCode", "workCoordinate", "workGeofenceRadius",
+            region, organization
           FROM {}
         """.format(CibicResources.Postgres.UserEnrollments)
         cur.execute(sql)
@@ -34,6 +35,8 @@ def lambda_handler(event, context):
         enrollmentsResponse = []
         for enrollment in cur.fetchall():
             enrollmentsResponse.append({
+              'region': enrollment[27],
+              'organization': enrollment[28],
               'userId': enrollment[0],
               'role': enrollment[1],
               'active': enrollment[2],

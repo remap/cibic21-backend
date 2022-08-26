@@ -69,6 +69,10 @@ def lambda_handler(event, context):
                 userId = enrollment['username']
                 print('Processing enrollment for userId ' + userId)
 
+                # TODO: Get the region and organization based on the user.
+                region = 'Los Angeles'
+                organization = 'CiBiC'
+
                 role = enrollment.get('role')
                 active = enrollment.get('active')
                 displayName = enrollment.get('displayName')
@@ -122,7 +126,8 @@ def lambda_handler(event, context):
                             # Save for checking later.
                             consentedUser['inserted'] = True
 
-                insertEnrollment(cur, userId, role, active, displayName, email, outwardFlowId, outwardFlowName,
+                insertEnrollment(cur, region, organization, userId, role, active, displayName, email,
+                  outwardFlowId, outwardFlowName,
                   returnFlowId, returnFlowName, outwardPodId, outwardPodName,
                   returnPodId, returnPodName, homeInfo, workInfo, consentedUser)
 
@@ -135,7 +140,7 @@ def lambda_handler(event, context):
 
                     # Make a phantom userId and insert a null enrollment with the consent info.
                     noEnrollmentCount += 1
-                    insertEnrollment(cur, '(no-enrollment-{:03})'.format(noEnrollmentCount),
+                    insertEnrollment(cur, None, None, '(no-enrollment-{:03})'.format(noEnrollmentCount),
                       None, False, None, None, None, None, None, None, None, None, None, None,
                       { 'coordinate': '0,0', 'addressText': None, 'fullAddress': None, 'zipCode': None, 'geofenceRadius': None },
                       { 'coordinate': '0,0', 'addressText': None, 'fullAddress': None, 'zipCode': None, 'geofenceRadius': None },
@@ -280,8 +285,8 @@ def getCanonicalUserName(name):
     """
     return unidecode.unidecode(name).lower().strip()
 
-def insertEnrollment(cur, userId, role, active, displayName, email, outwardFlowId, outwardFlowName,
-      returnFlowId, returnFlowName, outwardPodId, outwardPodName,
+def insertEnrollment(cur, region, organization, userId, role, active, displayName, email,
+      outwardFlowId, outwardFlowName, returnFlowId, returnFlowName, outwardPodId, outwardPodName,
       returnPodId, returnPodName, homeInfo, workInfo, consentedUser):
     """
     Insert the values into the user enrollments table. homeInfo and workInfo are
@@ -299,7 +304,7 @@ def insertEnrollment(cur, userId, role, active, displayName, email, outwardFlowI
         consentedTime = consentedUser['time']
 
     sql = """
-INSERT INTO {} ("userId", "role", "active", "displayName", "email",
+INSERT INTO {} (region, organization, "userId", role, active, "displayName", email,
                 "consentedName", "consentedEmail", "consentedPhone", "consentedTime",
                 "outwardFlowId", "outwardFlowName", "returnFlowId", "returnFlowName",
                 "outwardPodId", "outwardPodName", "returnPodId", "returnPodName",
@@ -307,7 +312,7 @@ INSERT INTO {} ("userId", "role", "active", "displayName", "email",
                 "workAddressText", "workFullAddress", "workZipCode", "workCoordinate", "workGeofenceRadius")
             VALUES %s
           """.format(CibicResources.Postgres.UserEnrollments)
-    values = [(userId, role, active, displayName, email,
+    values = [(region, organization, userId, role, active, displayName, email,
                consentedName, consentedEmail, consentedPhone, consentedTime,
                outwardFlowId, outwardFlowName, returnFlowId, returnFlowName,
                outwardPodId, outwardPodName, returnPodId, returnPodName,
