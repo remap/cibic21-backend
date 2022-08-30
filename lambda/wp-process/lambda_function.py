@@ -100,7 +100,7 @@ def lambda_handler(event, context):
                         podMemberJson = json.dumps(podMember)
 
                 weatherJson = None
-                if role == 'steward':
+                if role == 'rider' or role == 'steward':
                     # For a steward include the weather (at the start waypoint).
                     weatherJson = fetchWeatherJson(startZone[0]['latitude'], startZone[0]['longitude'])
 
@@ -152,7 +152,7 @@ def validateWaypoints(waypoints):
         tsWaypointDict[wp['timestamp']] = wp
     if nDuplicate > 0:
         validated = [tsWaypointDict[k] for k in sorted(tsWaypointDict.keys())]
-        print('waypoints validataion: found {} waypoints with same timestamp, {} valid waypoints'
+        print('waypoints validation: found {} waypoints with same timestamp, {} valid waypoints'
                 .format(nDuplicate, len(validated)))
         return validated
     return waypoints
