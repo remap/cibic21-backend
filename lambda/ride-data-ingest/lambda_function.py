@@ -1,6 +1,8 @@
 import boto3
 import os
 import uuid
+import gzip
+import base64
 from common.cibic_common import *
 from datetime import datetime
 
@@ -52,6 +54,8 @@ def lambda_handler(event, context):
 
             remapRideData = makeRideData(requestBody)
 
+            # To send the waypoints, we gzip and base64.
+            waypoints_gz = gzip.compress(str.encode(json.dumps(waypointsData)))
             # async-invoke waypoints processing lambda
             res = lambdaClient.invoke(FunctionName = waypointsProcArn,
                                 InvocationType = 'Event',
@@ -61,7 +65,7 @@ def lambda_handler(event, context):
                                                         {
                                                             'rideData' : remapRideData,
                                                             'flowData' : requestBody.get('flow'),
-                                                            'waypoints': waypointsData
+                                                            'waypoints_gz_b64' : base64.b64encode(waypoints_gz).decode()
                                                         }
                                                     })
                                 )

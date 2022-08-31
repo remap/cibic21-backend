@@ -6,6 +6,8 @@
 
 from common.cibic_common import *
 import os
+import gzip
+import base64
 import psycopg2
 from psycopg2 import extras # for fast batch insert, see https://www.psycopg.org/docs/extras.html#fast-exec
 
@@ -31,18 +33,19 @@ accuweatherConditionsUrl = os.environ['ENV_VAR_ACCUWEATHER_CONDITIONS_URL']
 # expected payload:
 # {
 #   'rid': "API-endpoint-request-id",
-#   'data': { 'rideData' : {'id': "rideId"}, 'flowData' : <flow-waypoints>, 'waypoints' : <waypoints-data> }
+#   'data': { 'rideData' : {'id': "rideId"}, 'flowData' : <flow-waypoints>, 'waypoints_gz_b64' : <waypoints-data> }
 # }
 def lambda_handler(event, context):
     try:
         if 'rid' in event and 'data' in event:
             requestId = event['rid']
             payload = event['data']
-            if 'rideData' in payload and 'id' in payload['rideData'] and 'waypoints' in payload:
+            if 'rideData' in payload and 'id' in payload['rideData'] and 'waypoints_gz_b64' in payload:
                 rideData = payload['rideData']
                 flowData = payload['flowData']
                 rideId = rideData['id']
-                waypoints = validateWaypoints(payload['waypoints'])
+                gunzipped_waypoints = json.loads(gzip.decompress(base64.b64decode(payload['waypoints_gz_b64'])))
+                waypoints = validateWaypoints(gunzipped_waypoints)
                 print ('API request {} process waypoints for ride {} ({} waypoints)'
                     .format(requestId, rideId, len(waypoints)))
 
