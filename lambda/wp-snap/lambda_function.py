@@ -47,7 +47,7 @@ def lambda_handler(event, context):
                     response = requests.request("GET", url, headers={}, data={})
                     if response.status_code/100 == 2:
                         processedWpts = processSnappingResponse(b, json.loads(response.text))
-                        # print('received {} snapped waypoints'.format(len(processedWpts)))
+                        print('received {} processed snapped waypoints'.format(len(processedWpts)))
                         # print(processedWpts)
                         snappedWpts.extend(processedWpts)
                     else:
@@ -110,7 +110,7 @@ def makeSnappingRequest(waypoints):
 
 def processSnappingResponse(waypoints, response):
     snappedWpts = []
-    for snappedWp in response['snappedPoints']:
+    for snappedWp in response.get('snappedPoints', []):
         rawIdx = -1
         isInterpolated = not 'originalIndex' in snappedWp
         if not isInterpolated:
