@@ -22,7 +22,9 @@ sesClient = boto3.client('ses')
 def lambda_handler(event, context):
     fromEmail = os.environ['ENV_VAR_FROM_EMAIL']
     toEmail = os.environ['ENV_VAR_TO_EMAIL']
+    demographicSurveyId = os.environ['ENV_VAR_DEMOGRAPHIC_SURVEY_ID']
     journalsTable = dynamoDbResource.Table(CibicResources.DynamoDB.JournalingRequests)
+    surveysTable = dynamoDbResource.Table(CibicResources.DynamoDB.RawSurveyResponses)
 
     try:
         #conn = psycopg2.connect(host=pgServer, database=pgDbName,
@@ -31,12 +33,11 @@ def lambda_handler(event, context):
         #conn.commit()
         #cur.close()
 
-        response = journalsTable.scan(
+        journalItems = journalsTable.scan(
           FilterExpression = Attr('type').eq('reflection') &
                              Attr('processed').eq(True)
-        )
-        items = response['Items']
-        print('Processing ' + str(len(items)) + ' journal entries.')
+        )['Items']
+        print('Processing ' + str(len(journalItems)) + ' journal entries.')
         rows = []
         expectedPrompts = [
           'Rate your commute satisfaction:',
@@ -47,11 +48,18 @@ def lambda_handler(event, context):
         expectedSatisfactionOptions = [ 'Terrible', 'Bad', 'Okay', 'Good', 'Great' ]
         expectedColorOptions = [ 'blue', 'yellow', 'magenta', 'light blue', 'green', 'pink' ]
 
+        surveyItems = surveysTable.scan(
+          FilterExpression = Attr('surveyId').eq(demographicSurveyId)
+        )['Items']
+        # Replace each 'body' by decoding the JSON.
+        for surveyItem in surveyItems:
+            surveyItem['body'] = json.loads(surveyItem.get('body', "{}"))
+
         conn = psycopg2.connect(host=pgServer, database=pgDbName,
                                 user=pgUsername, password=pgPassword)
-        for item in items:
+        for journalItem in journalItems:
             try:
-                body = json.loads(item['body'])
+                body = json.loads(journalItem['body'])
             except:
                 continue
 
@@ -67,7 +75,7 @@ def lambda_handler(event, context):
             role = body['role']
 
             # Pandas wants us to strip the time zone from the datetime.
-            timestamp = datetime.fromisoformat(item['timestamp']).replace(tzinfo=None)
+            timestamp = datetime.fromisoformat(journalItem['timestamp']).replace(tzinfo=None)
             if timestamp < datetime.fromisoformat('2022-08-01T00:00:00'):
                 # Older journal entries have a different format.
                 continue
@@ -76,9 +84,9 @@ def lambda_handler(event, context):
             sql = """
 SELECT pod, "podName", flow, "flowName", "rideId"
   FROM {0}
-	WHERE "userId" = '{1}' AND role = '{2}' AND "startTime" <= '{3}'
-	ORDER BY "startTime" DESC
-	LIMIT 1;
+  WHERE "userId" = '{1}' AND role = '{2}' AND "startTime" <= '{3}'
+  ORDER BY "startTime" DESC
+  LIMIT 1;
             """.format(CibicResources.Postgres.Rides, userId, role,
                        timestamp.astimezone().strftime("%Y-%m-%d %H:%M:%S%z"))
             cur = conn.cursor()
@@ -102,7 +110,11 @@ SELECT pod, "podName", flow, "flowName", "rideId"
             conn.commit()
             cur.close()
 
-            row = [userId, role, timestamp, pod, podName, flow, flowName, rideId]
+            demographics = getDemographics(surveyItems, userId, role)
+
+            row = [userId, role, timestamp, pod, podName, flow, flowName, rideId,
+                   demographics.get('gender'), demographics.get('race'),
+                   demographics.get('age'), demographics.get('income')]
                    
             for i in range(len(expectedPrompts)):
                 if i >= len(answers) or i >= len(journal):
@@ -164,7 +176,8 @@ SELECT pod, "podName", flow, "flowName", "rideId"
         frame1 = pd.DataFrame(
             rows,
             columns=(['User ID', 'Role', 'Date (UTC)', 'Pod ID', 'Pod Name',
-                      'Flow ID', 'Flow Name', 'Ride ID'] + headers))
+                      'Flow ID', 'Flow Name', 'Ride ID', 'Gender', 'Race',
+                      'Age', 'Household Income'] + headers))
         #frame2 = pd.DataFrame([[1, 2], [3, 4]], columns=['col 1', 'col 2'])
 
         with io.BytesIO() as output:
@@ -172,7 +185,7 @@ SELECT pod, "podName", flow, "flowName", "rideId"
                 frame1.to_excel(writer, sheet_name='Daily Journals Report', index=False)
                 #frame2.to_excel(writer, sheet_name='Monthly Survey Report', index=False)
             excel = output.getvalue()
-        print('Debug Excel output file size ' + str(len(excel)))
+        print('Excel output file size ' + str(len(excel)))
         ## TODO: When done testing, remove Lambda permissions to S3.
         #debug_s3.put_object(Bucket=CibicResources.S3Bucket.JournalingImages,
         #                    Key='CiBiC_Data_Report.xlsx', Body=excel)
@@ -185,6 +198,109 @@ SELECT pod, "podName", flow, "flowName", "rideId"
         err = reportError()
         print('caught exception:', sys.exc_info()[0])
         return lambdaReply(420, str(err))
+
+# Question IDs are obtained from https://api.surveymonkey.net/v3/surveys/{surveyId}/details .
+genderQuestionId = "62792474"
+genderAnswers = {
+    "518764756": "Female",
+    "518764757": "Male",
+    "518764758": "Transgender Female",
+    "518764759": "Transgender Male",
+    "518764760": "Genderqueer",
+    "518764761": "Nonbinary",
+    "518764762": "Prefer not to state"
+}
+raceQuestionId = "62792754"
+raceAnswers = {
+    "518766842": "Asian",
+    "518766843": "Black or African American",
+    "518766844": "Hispanic or Latino",
+    "518766845": "Middle Eastern or North African",
+    "518766846": "Multiracial or Multiethnic",
+    "518766847": "Native American or Alaska Native",
+    "518766848": "Native Hawaiian or other Pacific Islander",
+    "518766849": "White",
+    "518766850": "other",
+}
+ageQuestionId = "83765566"
+incomeQuestionId = "62792820"
+incomeAnswers = {
+    "518767237": "Less than $20000",
+    "518767238": "$20000 to $34999",
+    "518767239": "$35000 to $49999",
+    "518767240": "$50000 to $74999",
+    "518767241": "$75000 to $99999",
+    "518767242": "$100000 to $149999",
+    "518767243": "$150000 or More"
+}
+
+def getDemographics(surveyItems, userId, role):
+    """
+    Find the item in surveyItems matching the userId and role. Return an object
+    with found values.
+    """
+
+    result = {}
+    for item in surveyItems:
+        if item.get('userId') == userId and item.get('role') == role:
+            # Convert list of { 'id': x, 'answers': y} into a dict.
+            answers = {}
+            for answer in item['body'].get('pages', [{}])[0].get('questions', []):
+                if 'id' in answer and 'answers' in answer:
+                    answers[answer['id']] = answer['answers']
+
+            if genderQuestionId in answers:
+                if 'text' in answers[genderQuestionId][0]:
+                    result['gender'] = answers[genderQuestionId][0]['text']
+                else:
+                    answerId = answers[genderQuestionId][0].get('choice_id')
+                    if answerId in genderAnswers:
+                        result['gender'] = genderAnswers[answerId]
+                    else:
+                        print('caught exception: Unrecognized gender answer ID ' + answerId +
+                          ' in demographic survey for userId ' + userId + ', role ' + role)
+            else:
+                print('caught exception: Gender question ID ' + genderQuestionId +
+                  ' not in demographic survey for userId ' + userId + ', role ' + role)
+
+            if raceQuestionId in answers:
+                answerId = answers[raceQuestionId][0].get('choice_id')
+                if answerId in raceAnswers:
+                    if raceAnswers[answerId] == 'other':
+                        result['race'] = answers[raceQuestionId][1].get('text')
+                    else:
+                        result['race'] = raceAnswers[answerId]
+                else:
+                    print('caught exception: Unrecognized race answer ID ' + answerId +
+                      ' in demographic survey for userId ' + userId + ', role ' + role)
+            else:
+                print('caught exception: Race question ID ' + raceQuestionId +
+                  ' not in demographic survey for userId ' + userId + ', role ' + role)
+
+            if ageQuestionId in answers:
+                ageText = answers[ageQuestionId][0].get('text')
+                try:
+                    result['age'] = int(ageText)
+                except ValueError:
+                    result['age'] = ageText
+            else:
+                print('caught exception: Age question ID ' + ageQuestionId +
+                  ' not in demographic survey for userId ' + userId + ', role ' + role)
+
+            if incomeQuestionId in answers:
+                answerId = answers[incomeQuestionId][0].get('choice_id')
+                if answerId in incomeAnswers:
+                    result['income'] = incomeAnswers[answerId]
+                else:
+                    print('caught exception: Unrecognized income answer ID ' + answerId +
+                      ' in demographic survey for userId ' + userId + ', role ' + role)
+            else:
+                print('caught exception: Income question ID ' + genderQuestionId +
+                  ' not in demographic survey for userId ' + userId + ', role ' + role)
+
+            break
+
+    return result
 
 def emailAttachment(fromEmail, toEmail, contentType, filename, fileBytes):
     """
