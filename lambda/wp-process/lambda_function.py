@@ -243,7 +243,7 @@ def insertRide(cur, rideId, requestId, userId, role, flow, flowName, flowIsToWor
                     INSERT INTO {}("rideId", "requestId", "startTime", "endTime", "userId", "role", "flow", "flowName", "flowIsToWork", "commute",
                                    "flowJoinPointsJson", "flowLeavePointsJson", "pod", "podName", "podMemberJson",
                                    "inferredPod", "inferredPodName", "weatherJson", "startZone", "endZone")
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                             ST_Buffer(ST_GeomFromText('{}',4326)::geography,
                                         {},'quad_segs=16')::geometry,
                             ST_Buffer(ST_GeomFromText('{}',4326)::geography,
