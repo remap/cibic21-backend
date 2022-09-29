@@ -16,7 +16,7 @@ def lambda_handler(event, context):
     response = logs.describe_log_groups()
     for logGroup in response['logGroups']:
         logGroupName = logGroup['logGroupName']
-        if not logGroupName.startswith('/aws/lambda/cibic21'):
+        if not logGroupName.startswith('/aws/lambda/'):
             continue
 
         logGroupNameSuffix = logGroupName[logGroupName.rfind('/')+1:]
