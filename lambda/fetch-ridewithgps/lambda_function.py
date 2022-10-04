@@ -15,8 +15,13 @@ def lambda_handler(event, context):
     err = ''
 
     try:
+        # Fetch the routes for the club.
+        routes = fetchRoutes()
+        for id, route in routes.items():
+            print("Route " + str(id) + ' "' + str(route.get('name')) + '"')
+
         users = fetchUsers()
-        for user in users:
+        for userId, user in users.items():
             if not user.get('active') == True:
                 continue
             if user.get('approved_at') == None:
@@ -24,11 +29,21 @@ def lambda_handler(event, context):
             if not 'user' in user:
                 continue
 
-            userId = user['user']['id']
             displayName = str(user['user'].get('display_name'))
-            rides = fetchUserRides(userId)
+            trips = fetchUserTrips(userId)
+            routeInfo = ""
+            if len(trips) <= 5:
+                for tripId, tripMetaInfo in trips.items():
+                    trip = fetchTrip(tripId)
+                    for extra in trip.get('extras', []):
+                        # Only show the club's routes.
+                        if extra.get('type') == 'route' and extra.get('id') in routes:
+                            routeInfo += (', trip ' + str(tripMetaInfo['id']) +
+                              ' route ' + str(extra.get('id')))
+                            break
+
             print("User " + str(userId) + ": " + displayName + ", " +
-                  str(len(rides)) + " rides")
+                  str(len(trips)) + " trips" + routeInfo)
         requestReply = processedReply()
     except:
         err = reportError()
@@ -37,28 +52,66 @@ def lambda_handler(event, context):
 
     return requestReply
 
-def fetchUsers():
+def fetchRoutes():
     """
-    Fetch all the users from the RideWithGPS API. Return the JSON list. Throw
-    an exception for error.
+    Fetch all the routes for clubId (defined by the environment variable) from
+    the RideWithGPS API. Return a dict where the key is the route ID and the
+    value is the route JSON. Throw an exception for error.
     """
     response = requests.get(
-      'https://ridewithgps.com/clubs/' + str(clubId) + '/table_members.json?apikey=' +
-      apiKey + '&version=2&auth_token=' + authToken)
+      'https://ridewithgps.com/clubs/' + str(clubId) + '/routes.json?version=3&apikey=' +
+      apiKey + '&auth_token=' + authToken)
+    if response.status_code/100 == 2:
+        result = {}
+        for route in response.json()['results']:
+            result[route['id']] = route
+        return result
+    else:
+        raise ValueError('RideWithGPS API request for routes failed with code {}'.format(response.status_code))
+
+def fetchUsers():
+    """
+    Fetch all the users for clubId (defined by the environment variable) from
+    the RideWithGPS API. Return a dict where the key is the user ID and the
+    value is the user JSON. Throw an exception for error.
+    """
+    response = requests.get(
+      'https://ridewithgps.com/clubs/' + str(clubId) + '/table_members.json?version=3&apikey=' +
+      apiKey + '&auth_token=' + authToken)
+    if response.status_code/100 == 2:
+        result = {}
+        for user in response.json():
+            result[user['user_id']] = user
+        return result
+    else:
+        raise ValueError('RideWithGPS API request for users failed with code {}'.format(response.status_code))
+
+def fetchUserTrips(userId):
+    """
+    Fetch the meta info for all the trips of userId from the RideWithGPS API.
+    Return a dict where the key is the trip ID and the value is the trip JSON.
+    Throw an exception for error.
+    """
+    response = requests.get(
+      'https://ridewithgps.com/users/' + str(userId) + '/trips.json?version=2&apikey=' +
+      apiKey + '&auth_token=' + authToken)
+    if response.status_code/100 == 2:
+        result = {}
+        for trip in response.json()['results']:
+            result[trip['id']] = trip
+        return result
+    else:
+        raise ValueError('RideWithGPS API request for trips failed with code {}'.format(response.status_code))
+
+def fetchTrip(tripId):
+    """
+    Fetch the give trip from the RideWithGPS API. Return the JSON list.
+    Throw an exception for error.
+    """
+    response = requests.get(
+      'https://ridewithgps.com/trips/' + str(tripId) + '.json?version=3&apikey=' +
+      apiKey + '&auth_token=' + authToken)
     if response.status_code/100 == 2:
         return response.json()
     else:
-        raise('RideWithGPS API request for members failed with code {}'.format(response.status_code))
-
-def fetchUserRides(userId):
-    """
-    Fetch all the meta info for all the rides of userId from the RideWithGPS API.
-    Return the JSON list. Throw an exception for error.
-    """
-    response = requests.get(
-      'https://ridewithgps.com/users/' + str(userId) + '/trips.json?apikey=' +
-      apiKey + '&version=2&auth_token=' + authToken)
-    if response.status_code/100 == 2:
-        return response.json()['results']
-    else:
-        raise('RideWithGPS API request for trips failed with code {}'.format(response.status_code))
+        raise ValueError('RideWithGPS API request for trip failed with code {}'.format(response.status_code))
