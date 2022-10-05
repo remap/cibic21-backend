@@ -34,8 +34,9 @@ class CibicResources():
     class S3Bucket():
         JournalingImages = 'cibic21-s3-journaling-images'
 
-    # class Sns():
-        # EndpointRequestProcessed = # TBD
+    Organization = 'CiBiC'
+    LosAngelesRegion = 'Los Angeles'
+    BuenosAiresRegion = 'Buenos Aires'
 
 ################################################################################
 # GENERAL HELPERS

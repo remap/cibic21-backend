@@ -2,8 +2,8 @@
 # email and phone, as well as the latest completion time for the name.
 # This also queries the upstream endpoint to get the user enrollments, and to
 # save a processed version in a Postgres table. (The Lambda for the API to query
-# the Posgres table and return the user enrollments is query-user-enrollments.)
-# This Lmabda has a trigger to run periodically (i.e. each hour).
+# the Postgres table and return the user enrollments is query-user-enrollments.)
+# This Lambda has a trigger to run periodically (i.e. each hour).
 
 from common.cibic_common import *
 import os
@@ -69,9 +69,9 @@ def lambda_handler(event, context):
                 userId = enrollment['username']
                 print('Processing enrollment for userId ' + userId)
 
-                # TODO: Get the region and organization based on the user.
-                region = 'Los Angeles'
-                organization = 'CiBiC'
+                # The user enrollments coming from ENV_VAR_ENROLLMENTS_EP_URL are for Los Angeles.
+                region = CibicResources.LosAngelesRegion
+                organization = CibicResources.Organization
 
                 role = enrollment.get('role')
                 active = enrollment.get('active')
