@@ -29,6 +29,9 @@ consentSurveyId = os.environ['ENV_VAR_CONSENT_SURVEY_ID']
 consentSurveyNameRowId = os.environ['ENV_VAR_CONSENT_SURVEY_NAME_ROW_ID']
 consentSurveyEmailRowId = os.environ['ENV_VAR_CONSENT_SURVEY_EMAIL_ROW_ID']
 consentSurveyPhoneRowId = os.environ['ENV_VAR_CONSENT_SURVEY_PHONE_ROW_ID']
+clubId = os.environ['ENV_VAR_RWGPS_CLUB_ID']
+apiKey = os.environ['ENV_VAR_RWGPS_API_KEY']
+authToken = os.environ['ENV_VAR_RWGPS_AUTH_TOKEN']
 
 def lambda_handler(event, context):
     requestReply = {}
@@ -45,7 +48,9 @@ def lambda_handler(event, context):
                 consentedEmail = consentedUser.get('email')
                 if consentedEmail != None:
                     consentedUsersByEmail[consentedEmail.lower()] = consentedUser
-              
+
+        rideWithGpsUsers = fetchRideWithGpsUsers()
+
         # Fetch from the enrollments endpoint.
         response = requests.request("GET", enrollmentsEndpointUrl,
           auth=HTTPBasicAuth(enrollmentsEndpointUsername, enrollmentsEndpointPassword))
@@ -61,6 +66,10 @@ def lambda_handler(event, context):
             # first delete all records.
             cur.execute("DELETE FROM {}".format(CibicResources.Postgres.UserEnrollments))
 
+            # The user enrollments coming from ENV_VAR_ENROLLMENTS_EP_URL are for Los Angeles.
+            region = CibicResources.LosAngelesRegion
+            organization = CibicResources.Organization
+
             for enrollment in enrollments:
                 # Get required fields.
                 if not 'username' in enrollment:
@@ -68,10 +77,6 @@ def lambda_handler(event, context):
                     continue
                 userId = enrollment['username']
                 print('Processing enrollment for userId ' + userId)
-
-                # The user enrollments coming from ENV_VAR_ENROLLMENTS_EP_URL are for Los Angeles.
-                region = CibicResources.LosAngelesRegion
-                organization = CibicResources.Organization
 
                 role = enrollment.get('role')
                 active = enrollment.get('active')
@@ -140,11 +145,37 @@ def lambda_handler(event, context):
 
                     # Make a phantom userId and insert a null enrollment with the consent info.
                     noEnrollmentCount += 1
-                    insertEnrollment(cur, None, None, '(no-enrollment-{:03})'.format(noEnrollmentCount),
+                    insertEnrollment(cur, region, organization, '(no-enrollment-{:03})'.format(noEnrollmentCount),
                       None, False, None, None, None, None, None, None, None, None, None, None,
                       { 'coordinate': '0,0', 'addressText': None, 'fullAddress': None, 'zipCode': None, 'geofenceRadius': None },
                       { 'coordinate': '0,0', 'addressText': None, 'fullAddress': None, 'zipCode': None, 'geofenceRadius': None },
                       consentedUser)
+
+            # The users coming from ENV_VAR_RWGPS_CLUB_ID are for BuenosAires.
+            region = CibicResources.BuenosAiresRegion
+
+            # Add RideWithGPS users.
+            for user in rideWithGpsUsers.values():
+                userId = str(user['user_id'])
+                if user.get('approved_at') == None:
+                    continue
+                if not 'user' in user:
+                    continue
+
+                print('Processing RideWithGPS userId ' + userId)
+
+                # TODO: Does a RideWithGPS user have a role?
+                role = 'rider'
+                active = (user.get('active') == True)
+                displayName = user['user'].get('display_name')
+                if displayName != None:
+                    displayName = displayName.strip()
+                email = user['user'].get('real_email')
+                if email != None:
+                    email = email.strip()
+
+                insertEnrollment(cur, region, organization, userId, role, active, displayName, email,
+                  None, None, None, None, None, None, None, None, None, None, None)
 
             conn.commit()
             cur.close()
@@ -293,15 +324,12 @@ def insertEnrollment(cur, region, organization, userId, role, active, displayNam
     from getLocationInfo(). If not None, consentedUser is an item returned by
     getConsentedUsers().
     """
-    consentedName = None
-    consentedEmail = None
-    consentedPhone = None
-    consentedTime = None
-    if consentedUser != None:
-        consentedName = consentedUser['name']
-        consentedEmail = consentedUser['email']
-        consentedPhone = consentedUser['phone']
-        consentedTime = consentedUser['time']
+    if consentedUser == None:
+        consentedUser = {}
+    if homeInfo == None:
+        homeInfo = {}
+    if workInfo == None:
+        workInfo = {}
 
     sql = """
 INSERT INTO {} (region, organization, "userId", role, active, "displayName", email,
@@ -313,14 +341,30 @@ INSERT INTO {} (region, organization, "userId", role, active, "displayName", ema
             VALUES %s
           """.format(CibicResources.Postgres.UserEnrollments)
     values = [(region, organization, userId, role, active, displayName, email,
-               consentedName, consentedEmail, consentedPhone, consentedTime,
+               consentedUser.get('name'), consentedUser.get('email'), consentedUser.get('phone'), consentedUser.get('time'),
                outwardFlowId, outwardFlowName, returnFlowId, returnFlowName,
                outwardPodId, outwardPodName, returnPodId, returnPodName,
-      homeInfo['addressText'], homeInfo['fullAddress'], homeInfo['zipCode'], homeInfo['coordinate'], homeInfo['geofenceRadius'],
-      workInfo['addressText'], workInfo['fullAddress'], workInfo['zipCode'], workInfo['coordinate'], workInfo['geofenceRadius'])]
+      homeInfo.get('addressText'), homeInfo.get('fullAddress'), homeInfo.get('zipCode'), homeInfo.get('coordinate'), homeInfo.get('geofenceRadius'),
+      workInfo.get('addressText'), workInfo.get('fullAddress'), workInfo.get('zipCode'), workInfo.get('coordinate'), workInfo.get('geofenceRadius'))]
     extras.execute_values(cur, sql, values)
     print('sql query execute result: ' + str(cur.statusmessage))
 
 def makeSqlPoint(lat, lon):
     return str(lon) + ', ' + str(lat)
 
+def fetchRideWithGpsUsers():
+    """
+    Fetch all the users for clubId (defined by the environment variable) from
+    the RideWithGPS API. Return a dict where the key is the user ID and the
+    value is the user JSON. Throw an exception for error.
+    """
+    response = requests.get(
+      'https://ridewithgps.com/clubs/' + str(clubId) + '/table_members.json?version=3&apikey=' +
+      apiKey + '&auth_token=' + authToken)
+    if response.status_code/100 == 2:
+        result = {}
+        for user in response.json():
+            result[user['user_id']] = user
+        return result
+    else:
+        raise ValueError('RideWithGPS API request for users failed with code {}'.format(response.status_code))
