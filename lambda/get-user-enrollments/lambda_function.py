@@ -1,8 +1,10 @@
 # This Lambda queries SurveyMonkey for consent surveys and gets the user name,
 # email and phone, as well as the latest completion time for the name.
 # This also queries the upstream endpoint to get the user enrollments, and to
-# save a processed version in a Postgres table. (The Lambda for the API to query
-# the Postgres table and return the user enrollments is query-user-enrollments.)
+# save a processed version in a Postgres table with region 'Los Angeles'. This
+# also fetches users from RideWithGPS and saves in the same Postgres table with
+# region 'Buenos Aires'. (The Lambda for the API to query the Postgres table and
+# return the user enrollments is query-user-enrollments.)
 # This Lambda has a trigger to run periodically (i.e. each hour).
 
 from common.cibic_common import *
@@ -151,7 +153,7 @@ def lambda_handler(event, context):
                       { 'coordinate': '0,0', 'addressText': None, 'fullAddress': None, 'zipCode': None, 'geofenceRadius': None },
                       consentedUser)
 
-            # The users coming from ENV_VAR_RWGPS_CLUB_ID are for BuenosAires.
+            # The users coming from ENV_VAR_RWGPS_CLUB_ID are for Buenos Aires.
             region = CibicResources.BuenosAiresRegion
 
             # Add RideWithGPS users.
