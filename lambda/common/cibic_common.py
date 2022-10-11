@@ -66,6 +66,37 @@ def unmarshallAwsDataItem(awsDict):
     pyDict = {k: deserializer.deserialize(v) for k,v in awsDict.items()}
     return pyDict
 
+def fetchWeatherJson(lat, lon, accuweatherLocationUrl, accuweatherConditionsUrl, accuweatherApiKey):
+    """
+    Use the lat, lon to fetch the Accuweather location key, and use that to
+    fetch the weather conditions. Return a JSON string of the entire response.
+    If there is an error, print the error and return None.
+    """
+    # Fetch the location key.
+    response = requests.get(
+        '{}?apikey={}&q={}%2C{}'.format(accuweatherLocationUrl, accuweatherApiKey, lat, lon))
+    if response.status_code/100 == 2:
+        locationKey = response.json()['Key']
+    else:
+        err = 'Accuweather location API request failed with code {}'.format(response.status_code)
+        print(err)
+        return None
+
+    # Fetch the weather conditions.
+    response = requests.get(
+        '{}/{}?apikey={}&language=en-us'.format(accuweatherConditionsUrl, locationKey, accuweatherApiKey))
+    if response.status_code/100 == 2:
+        if len(response.json()) == 1:
+            return json.dumps(response.json()[0])
+        else:
+            err = 'Expected 1 Accuweather result. Got {}: {}'.format(len(response.json()), response.json())
+            print(err)
+            return None
+    else:
+        err = 'Accuweather conditions API request failed with code {}'.format(response.status_code)
+        print(err)
+        return None
+
 ################################################################################
 # LAMBDA HELPERS
 ################################################################################
