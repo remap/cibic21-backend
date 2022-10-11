@@ -14,7 +14,6 @@ from psycopg2 import extras # for fast batch insert, see https://www.psycopg.org
 # Python 3.8 lambda environment does not have requests https://stackoverflow.com/questions/58952947/import-requests-on-aws-lambda-for-python-3-8
 # for a fix using Lambda Layers, see https://dev.to/razcodes/how-to-create-a-lambda-layer-in-aws-106m
 import requests
-from requests.auth import HTTPBasicAuth
 
 snsClient = boto3.client('sns')
 
@@ -110,7 +109,8 @@ def lambda_handler(event, context):
                 if role == 'rider' or role == 'steward':
                     # For a steward include the weather (at the start waypoint).
                     weatherJson = fetchWeatherJson(startZone[0]['latitude'], startZone[0]['longitude'],
-                      accuweatherLocationUrl, accuweatherConditionsUrl, accuweatherApiKey)
+                      accuweatherLocationUrl, accuweatherConditionsUrl, accuweatherApiKey,
+                      requests)
 
                 # TODO: Actually infer the pod.
                 inferredPod = pod

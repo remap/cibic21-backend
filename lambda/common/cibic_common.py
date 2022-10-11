@@ -66,11 +66,13 @@ def unmarshallAwsDataItem(awsDict):
     pyDict = {k: deserializer.deserialize(v) for k,v in awsDict.items()}
     return pyDict
 
-def fetchWeatherJson(lat, lon, accuweatherLocationUrl, accuweatherConditionsUrl, accuweatherApiKey):
+def fetchWeatherJson(lat, lon, accuweatherLocationUrl, accuweatherConditionsUrl,
+      accuweatherApiKey, requests):
     """
     Use the lat, lon to fetch the Accuweather location key, and use that to
     fetch the weather conditions. Return a JSON string of the entire response.
-    If there is an error, print the error and return None.
+    You must pass in requests because this requires the Lambda to include the
+    layer for it. If there is an error, print the error and return None.
     """
     # Fetch the location key.
     response = requests.get(
