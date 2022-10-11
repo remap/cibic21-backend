@@ -14,6 +14,9 @@ pgPassword = os.environ['ENV_VAR_POSTGRES_PASSWORD']
 clubId = os.environ['ENV_VAR_RWGPS_CLUB_ID']
 apiKey = os.environ['ENV_VAR_RWGPS_API_KEY']
 authToken = os.environ['ENV_VAR_RWGPS_AUTH_TOKEN']
+accuweatherApiKey = os.environ['ENV_VAR_ACCUWEATHER_API_KEY']
+accuweatherLocationUrl = os.environ['ENV_VAR_ACCUWEATHER_LOCATION_URL']
+accuweatherConditionsUrl = os.environ['ENV_VAR_ACCUWEATHER_CONDITIONS_URL']
 
 def lambda_handler(event, context):
     requestReply = {}
@@ -29,22 +32,45 @@ def lambda_handler(event, context):
                                 user=pgUsername, password=pgPassword)
         cur = conn.cursor()
 
-        users = queryActiveUsers(cur, 'Buenos Aires')
-        for userId, user in users.items():
-            trips = fetchUserTrips(userId)
-            routeInfo = ""
-            if len(trips) <= 5:
-                for tripId, tripMetaInfo in trips.items():
-                    trip = fetchTrip(tripId)
-                    for extra in trip.get('extras', []):
-                        # Only show the club's routes.
-                        if extra.get('type') == 'route' and extra.get('id') in routes:
-                            routeInfo += (', trip ' + str(tripMetaInfo['id']) +
-                              ' route ' + str(extra.get('id')))
-                            break
+        # The users coming from ENV_VAR_RWGPS_CLUB_ID are for Buenos Aires.
+        region = CibicResources.BuenosAiresRegion
+        organization = CibicResources.Organization
 
-            print("User " + str(userId) + ": " + str(user.get('displayName')) + ", " +
-                  str(len(trips)) + " trips" + routeInfo)
+        users = queryActiveUsers(cur, region, organization)
+        existingRides = queryRideIds(cur, region)
+
+        for userId, user in users.items():
+            # For now, all users have role 'rider'.
+            role = 'rider'
+
+            trips = fetchUserTrips(userId)
+            for rideId, tripMetaInfo in trips.items():
+                # Ride IDs in the table are strings but RideWith GPS IDs are numbers.
+                if str(rideId) in existingRides:
+                    # Already inserted this trip.
+                    continue
+
+                trip = fetchTrip(rideId)
+
+                # Find the route which must be a registered route.
+                route = None
+                for extra in trip.get('extras', []):
+                    # Only show the club's routes.
+                    if (extra.get('type') == 'route' and extra.get('id') in routes and
+                        'route' in extra):
+                        route = extra['route']
+                        print('User ' + str(userId) + ': ' + str(user.get('displayName')) +
+                              ', ride ' + str(tripMetaInfo['id']) + ' route ' +
+                              str(route['id']))
+                        break
+
+                if route == None or trip.get('trip') == None or trip['trip'].get('track_points') == None:
+                    # Insert a ride where the organization is 'other', meaning
+                    # that the user uploaded an unrelated trip. We insert this
+                    # so that we don't fetch the trip data again.
+                    insertRide(cur, str(rideId), str(userId), None, None, None, None,
+                      None, None, region, 'other', None, None)
+                    continue
 
         conn.commit()
         cur.close()
@@ -74,16 +100,16 @@ def fetchRoutes():
     else:
         raise ValueError('RideWithGPS API request for routes failed with code {}'.format(response.status_code))
 
-def queryActiveUsers(cur, region):
+def queryActiveUsers(cur, region, organization):
     """
-    Query the enrollments table for all active users in the region. Return a
-    dict where the key is the user ID and the value is a JSON with the info.
+    Query the enrollments table for all active users in the region and organization.
+    Return a dict where the key is the user ID and the value is a JSON with the info.
     """
     sql = """
       SELECT "userId", role, "displayName", email
       FROM {0}
-      WHERE active = TRUE AND region = '{1}'
-    """.format(CibicResources.Postgres.UserEnrollments, region)
+      WHERE active = TRUE AND region = '{1}' AND organization = '{2}'
+    """.format(CibicResources.Postgres.UserEnrollments, region, organization)
     cur.execute(sql)
     result = {}
     for user in cur.fetchall():
@@ -92,6 +118,24 @@ def queryActiveUsers(cur, region):
             'displayName': user[2],
             'email': user[3]
         }
+
+    return result
+
+def queryRideIds(cur, region):
+    """
+    Query the rides table for all rides in the region, disregarding the
+    organization which can be CibicResources.Organization or 'other'. Return an
+    array of the ride IDs.
+    """
+    sql = """
+      SELECT "rideId"
+      FROM {0}
+      WHERE region = '{1}'
+    """.format(CibicResources.Postgres.Rides, region)
+    cur.execute(sql)
+    result = []
+    for ride in cur.fetchall():
+        result.append(ride[0])
 
     return result
 
@@ -124,3 +168,37 @@ def fetchTrip(tripId):
         return response.json()
     else:
         raise ValueError('RideWithGPS API request for trip failed with code {}'.format(response.status_code))
+
+def insertRide(cur, rideId, userId, role, flow, flowName,
+               inferredPod, inferredPodName, weatherJson, region, organization, startZone, endZone):
+    """
+    Insert into the rides table. rideId and userId must be None or a str (not number).
+    """
+    if startZone == None or endZone == None:
+        # This is for inserting rides where organization is 'other'.
+        sql = """
+              INSERT INTO {}("rideId", "userId", "role", "flow", "flowName",
+                             "inferredPod", "inferredPodName", "weatherJson", region, organization)
+              VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+              """.format(CibicResources.Postgres.Rides)
+        cur.execute(sql, (rideId, userId, role, flow, flowName,
+                          inferredPod, inferredPodName, weatherJson, region, organization))
+        return
+
+    # generate start / end geometry
+    cLat1, cLon1, rad1 = obfuscateWaypoints(startZone)
+    cLat2, cLon2, rad2 = obfuscateWaypoints(endZone)
+    sql = """
+          INSERT INTO {}("rideId", "startTime", "endTime", "userId", "role", "flow", "flowName",
+                         "inferredPod", "inferredPodName", "weatherJson", region, organization, "startZone", "endZone")
+          VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                  ST_Buffer(ST_GeomFromText('{}',4326)::geography,
+                              {},'quad_segs=16')::geometry,
+                  ST_Buffer(ST_GeomFromText('{}',4326)::geography,
+                              {},'quad_segs=1')::geometry
+          )
+          """.format(CibicResources.Postgres.Rides,
+                      wktPoint(cLat1, cLon1), rad1,
+                      wktPoint(cLat2, cLon2), rad2)
+    cur.execute(sql, (rideId, startZone[0]['timestamp'], endZone[-1]['timestamp'], userId, role, flow, flowName,
+                      inferredPod, inferredPodName, weatherJson, region, organization))
