@@ -118,6 +118,71 @@ def processedReply():
 ################################################################################
 # GEO MATH HELPERS
 ################################################################################
+
+def splitWaypoints(radius, waypoints):
+    """
+    Split waypoints into three groups:
+    1) 'start' zone: waypoints that fall within given radius of the first waypoint
+    2) 'end' zone:  waypoints that fall within given radius of the last waypoint
+    3) 'main' zone: all other waypoints.
+    Each waypoint has float 'latitude' and 'longitude'. This adds 'originalIdx'
+    and 'zone'. Return return (startZone, endZone, mainZone) .
+    """
+    if len(waypoints):
+        startWp = waypoints[0]
+        endWp = waypoints[-1]
+        startZone = [startWp]
+        endZone = []
+        mainZone = []
+        wpIdx = 0
+        for wp in waypoints:
+            wp['originalIdx'] = wpIdx
+            dStart = getGreatCircleDistance(startWp['latitude'], startWp['longitude'],
+                        wp['latitude'], wp['longitude'])
+            dEnd = getGreatCircleDistance(endWp['latitude'], endWp['longitude'],
+                        wp['latitude'], wp['longitude'])
+            if dStart <= radius or dEnd <= radius:
+                if dStart <= radius:
+                    wp['zone'] = 'start'
+                    startZone.append(wp)
+                if dEnd <= radius:
+                    wp['zone'] = 'end'
+                    endZone.append(wp)
+            else:
+                wp['zone'] = 'main'
+                mainZone.append(wp)
+            wpIdx += 1
+        endZone.append(endWp)
+        print('split waypoints: start {}, end {}, main {}'
+                .format(len(startZone), len(endZone), len(mainZone)))
+        return (startZone, endZone, mainZone)
+    return ([],[],[])
+
+def obfuscateWaypoints(waypoints):
+    """
+    Each waypoint has float 'latitude' and 'longitude'.
+    Return (centerLat, centerLon, minRadius) .
+    """
+    centerLat = 0
+    centerLon = 0
+    # find "center of mass" of all waypoints
+    # TODO: what if center is too close to the waypoint we want to obfuscate
+    # (i.e. len(waypoints) == 1)
+    for wp in waypoints:
+        centerLat += wp['latitude']
+        centerLon += wp['longitude']
+    centerLat /= float(len(waypoints))
+    centerLon /= float(len(waypoints))
+    # find min radius to cover all waypoints
+    minRadius = 0
+    for wp in waypoints:
+        d = getGreatCircleDistance(wp['latitude'], wp['longitude'], centerLat, centerLon)
+        if minRadius < d:
+            minRadius = d
+    print('zone center at ({},{}) with radius {}'
+            .format(centerLat, centerLon, minRadius))
+    return (centerLat, centerLon, minRadius)
+
 # https://en.wikipedia.org/wiki/Haversine_formula
 def getGreatCircleDistance(lat1, lon1, lat2, lon2):
     if lat1 == lat2 and lon1 == lon2:
