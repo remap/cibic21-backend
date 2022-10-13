@@ -1,12 +1,15 @@
 # This Lambda is for fetching ride info from the RideWithGPS API.
 
 import psycopg2
+from psycopg2 import extras # for fast batch insert, see https://www.psycopg.org/docs/extras.html#fast-exec
 from common.cibic_common import *
+from datetime import datetime
 
 # Python 3.8 lambda environment does not have requests https://stackoverflow.com/questions/58952947/import-requests-on-aws-lambda-for-python-3-8
 # for a fix using Lambda Layers, see https://dev.to/razcodes/how-to-create-a-lambda-layer-in-aws-106m
 import requests
 
+obfuscateRadius = float(os.environ['ENV_VAR_OBFUSCATE_RADIUS']) if 'ENV_VAR_OBFUSCATE_RADIUS' in os.environ else 100
 pgServer = os.environ['ENV_VAR_POSTGRES_SERVER']
 pgDbName = os.environ['ENV_VAR_POSTGRES_DB']
 pgUsername = os.environ['ENV_VAR_POSTGRES_USER']
@@ -71,6 +74,35 @@ def lambda_handler(event, context):
                     insertRide(cur, str(rideId), str(userId), None, None, None, None,
                       None, None, region, 'other', None, None)
                     continue
+
+                print("Process ride " + str(rideId))
+                # Get the waypoints in the form needed by splitWaypoints, etc.
+                waypoints = []
+                for point in trip['trip']['track_points']:
+                    waypoints.append({ 'longitude': point['x'], 'latitude': point['y'],
+                      'timestamp': datetime.fromtimestamp(point['t']).isoformat() })
+
+                startZone, endZone, _ = splitWaypoints(obfuscateRadius, waypoints)
+
+                # TODO: Get the flow from the route.
+                flow = None
+                flowName = None
+
+                # TODO: Infer the pod.
+                inferredPod = None
+                inferredPodName = None
+
+                weatherJson = None
+                if role == 'rider' or role == 'steward':
+                    # For a steward include the weather (at the start waypoint).
+                    weatherJson = fetchWeatherJson(startZone[0]['latitude'], startZone[0]['longitude'],
+                      accuweatherLocationUrl, accuweatherConditionsUrl, accuweatherApiKey,
+                      requests)
+
+                insertRide(cur, rideId, userId, role, flow, flowName,
+                  inferredPod, inferredPodName, weatherJson, region, organization,
+                  startZone, endZone)
+                insertRawWaypoints(cur, rideId, waypoints)
 
         conn.commit()
         cur.close()
@@ -202,3 +234,21 @@ def insertRide(cur, rideId, userId, role, flow, flowName,
                       wktPoint(cLat2, cLon2), rad2)
     cur.execute(sql, (rideId, startZone[0]['timestamp'], endZone[-1]['timestamp'], userId, role, flow, flowName,
                       inferredPod, inferredPodName, weatherJson, region, organization))
+
+def wktPoint(lat, lon):
+    return 'POINT({} {})'.format(lon, lat)
+
+def insertRawWaypoints(cur, rideId, waypoints):
+    sql = """
+            INSERT INTO {} ("rideId", coordinate, timestamp, idx, zone, "pointJson")
+            VALUES %s
+          """.format(CibicResources.Postgres.WaypointsRaw)
+    values = list((rideId, makeSqlPoint(wp['latitude'], wp['longitude']),
+                    wp['timestamp'], wp['originalIdx'], wp['zone'],
+                    # Cache the JSON of the point with the timestamp.
+                    '[' + str(wp['longitude']) + ', ' + str(wp['latitude']) + ', 0, "' + wp['timestamp'] + '"]')
+                  for wp in waypoints)
+    extras.execute_values(cur, sql, values)
+
+def makeSqlPoint(lat, lon):
+    return str(lon) + ', ' + str(lat)
