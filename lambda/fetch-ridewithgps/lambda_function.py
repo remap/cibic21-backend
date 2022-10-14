@@ -60,11 +60,8 @@ def lambda_handler(event, context):
                 for extra in trip.get('extras', []):
                     # Only show the club's routes.
                     if (extra.get('type') == 'route' and extra.get('id') in routes and
-                        'route' in extra):
+                        'route' in extra and 'track_points' in extra['route']):
                         route = extra['route']
-                        print('User ' + str(userId) + ': ' + str(user.get('displayName')) +
-                              ', ride ' + str(tripMetaInfo['id']) + ' route ' +
-                              str(route['id']))
                         break
 
                 if route == None or trip.get('trip') == None or trip['trip'].get('track_points') == None:
@@ -75,7 +72,12 @@ def lambda_handler(event, context):
                       None, None, region, 'other', None, None)
                     continue
 
-                print("Process ride " + str(rideId))
+                flow = str(route['id'])
+                flowName = route.get('name')
+
+                print('Process user ' + str(userId) + ': ' + str(user.get('displayName')) +
+                      ', ride ' + str(rideId) + ' route ' + flow)
+
                 # Get the waypoints in the form needed by splitWaypoints, etc.
                 waypoints = []
                 for point in trip['trip']['track_points']:
@@ -84,9 +86,11 @@ def lambda_handler(event, context):
 
                 startZone, endZone, _ = splitWaypoints(obfuscateRadius, waypoints)
 
-                # TODO: Get the flow from the route.
-                flow = None
-                flowName = None
+                # Locally assign the flow waypoint indexes.
+                idx = 0
+                for wp in route['track_points']:
+                    wp['idx'] = idx
+                    idx += 1
 
                 # TODO: Infer the pod.
                 inferredPod = None
@@ -99,10 +103,11 @@ def lambda_handler(event, context):
                       accuweatherLocationUrl, accuweatherConditionsUrl, accuweatherApiKey,
                       requests)
 
-                insertRide(cur, rideId, userId, role, flow, flowName,
+                insertRide(cur, str(rideId), str(userId), role, flow, flowName,
                   inferredPod, inferredPodName, weatherJson, region, organization,
                   startZone, endZone)
-                insertRawWaypoints(cur, rideId, waypoints)
+                insertRawWaypoints(cur, str(rideId), waypoints)
+                insertFlowWaypoints(cur, str(rideId), flow, route['track_points'])
 
         conn.commit()
         cur.close()
@@ -249,6 +254,18 @@ def insertRawWaypoints(cur, rideId, waypoints):
                     '[' + str(wp['longitude']) + ', ' + str(wp['latitude']) + ', 0, "' + wp['timestamp'] + '"]')
                   for wp in waypoints)
     extras.execute_values(cur, sql, values)
+
+def insertFlowWaypoints(cur, rideId, flow, waypoints):
+    try:
+        sql = """
+                INSERT INTO {} ("rideId", flow, coordinate, idx)
+                VALUES %s
+              """.format(CibicResources.Postgres.RideFlowWaypoints)
+        values = list((rideId, flow, makeSqlPoint(wp['y'], wp['x']),
+                       wp['idx']) for wp in waypoints)
+        extras.execute_values(cur, sql, values)
+    except:
+        print('caught exception in insertFlowWaypoints:', sys.exc_info()[0])
 
 def makeSqlPoint(lat, lon):
     return str(lon) + ', ' + str(lat)
