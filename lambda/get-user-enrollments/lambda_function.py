@@ -3,7 +3,8 @@
 # This also queries the upstream endpoint to get the user enrollments, and to
 # save a processed version in a Postgres table with region 'Los Angeles'. This
 # also fetches users from RideWithGPS and saves in the same Postgres table with
-# region 'Buenos Aires'. (The Lambda for the API to query the Postgres table and
+# region 'Buenos Aires'. We also invoke Lambda fetch-ridewithgps so that it can
+# check for new rides. (The Lambda for the API to query the Postgres table and
 # return the user enrollments is query-user-enrollments.)
 # This Lambda has a trigger to run periodically (i.e. each hour).
 
@@ -18,6 +19,8 @@ from datetime import datetime
 # for a fix using Lambda Layers, see https://dev.to/razcodes/how-to-create-a-lambda-layer-in-aws-106m
 import requests
 from requests.auth import HTTPBasicAuth
+
+lambdaClient = boto3.client('lambda')
 
 enrollmentsEndpointUrl = os.environ['ENV_VAR_ENROLLMENTS_EP_URL']
 enrollmentsEndpointUsername = os.environ['ENV_VAR_ENROLLMENTS_EP_USERNAME']
@@ -34,6 +37,10 @@ consentSurveyPhoneRowId = os.environ['ENV_VAR_CONSENT_SURVEY_PHONE_ROW_ID']
 clubId = os.environ['ENV_VAR_RWGPS_CLUB_ID']
 apiKey = os.environ['ENV_VAR_RWGPS_API_KEY']
 authToken = os.environ['ENV_VAR_RWGPS_AUTH_TOKEN']
+
+# resource ARNs must be defined as lambda environment variables
+# see https://docs.aws.amazon.com/lambda/latest/dg/configuration-envvars.html#configuration-envvars-config
+fetchRideWithGpsArn = os.environ['ENV_LAMBDA_ARN_FETCH_RIDEWITHGPS']
 
 def lambda_handler(event, context):
     requestReply = {}
@@ -181,6 +188,14 @@ def lambda_handler(event, context):
 
             conn.commit()
             cur.close()
+
+            # Async-invoke Lambda fetch-ridewithgps to check for rides.
+            # NOTE: This Lambda is in a VPN, so make sure that the VPN has an
+            # endpoint in the same security group for invoking the Lambda service.
+            res = lambdaClient.invoke(FunctionName = fetchRideWithGpsArn,
+                                      InvocationType = 'Event',
+                                      Payload = '{}')
+            print('fetch-ridewithgps async-invoke reply status code '+str(res['StatusCode']))
 
             requestReply = processedReply()
         else:
