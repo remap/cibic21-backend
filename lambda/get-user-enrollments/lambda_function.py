@@ -173,8 +173,10 @@ def lambda_handler(event, context):
 
                 print('Processing RideWithGPS userId ' + userId)
 
-                # TODO: Does a RideWithGPS user have a role?
                 role = 'rider'
+                if 'steward' in user.get('tag_names', []):
+                    role = 'steward'
+
                 active = (user.get('active') == True)
                 displayName = user['user'].get('display_name')
                 if displayName != None:
