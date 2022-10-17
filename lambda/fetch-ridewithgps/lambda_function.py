@@ -1,4 +1,9 @@
-# This Lambda is for fetching ride info from the RideWithGPS API.
+# This Lambda is for fetching ride info from the RideWithGPS API. This is
+# invoked when get-user-enrollments is done (since this depends on the current
+# list of users). For each 'Buenos Aires' user in the RideWithGPS club, fetch
+# the rides metadata. If the ride details have not been added, then fetch and
+# add to the tables for rides, ride waypoints and flow waypoints. For each new
+# ride, send an SNS message to buenos-aires-new-ride-ready .
 
 import psycopg2
 from psycopg2 import extras # for fast batch insert, see https://www.psycopg.org/docs/extras.html#fast-exec
@@ -9,6 +14,8 @@ from datetime import datetime
 # for a fix using Lambda Layers, see https://dev.to/razcodes/how-to-create-a-lambda-layer-in-aws-106m
 import requests
 
+snsClient = boto3.client('sns')
+
 obfuscateRadius = float(os.environ['ENV_VAR_OBFUSCATE_RADIUS']) if 'ENV_VAR_OBFUSCATE_RADIUS' in os.environ else 100
 pgServer = os.environ['ENV_VAR_POSTGRES_SERVER']
 pgDbName = os.environ['ENV_VAR_POSTGRES_DB']
@@ -17,6 +24,7 @@ pgPassword = os.environ['ENV_VAR_POSTGRES_PASSWORD']
 clubId = os.environ['ENV_VAR_RWGPS_CLUB_ID']
 apiKey = os.environ['ENV_VAR_RWGPS_API_KEY']
 authToken = os.environ['ENV_VAR_RWGPS_AUTH_TOKEN']
+rideReadyTopic = os.environ['ENV_SNS_RIDE_READY']
 accuweatherApiKey = os.environ['ENV_VAR_ACCUWEATHER_API_KEY']
 accuweatherLocationUrl = os.environ['ENV_VAR_ACCUWEATHER_LOCATION_URL']
 accuweatherConditionsUrl = os.environ['ENV_VAR_ACCUWEATHER_CONDITIONS_URL']
@@ -44,7 +52,7 @@ def lambda_handler(event, context):
 
         for userId, user in users.items():
             # For now, all users have role 'rider'.
-            role = 'rider'
+            role = user.get('role')
 
             trips = fetchUserTrips(userId)
             for rideId, tripMetaInfo in trips.items():
@@ -82,7 +90,7 @@ def lambda_handler(event, context):
                 waypoints = []
                 for point in trip['trip']['track_points']:
                     waypoints.append({ 'longitude': point['x'], 'latitude': point['y'],
-                      'timestamp': datetime.fromtimestamp(point['t']).isoformat() })
+                      'timestamp': datetime.fromtimestamp(point['t']).isoformat() + '+00:00' })
 
                 startZone, endZone, _ = splitWaypoints(obfuscateRadius, waypoints)
 
@@ -108,6 +116,18 @@ def lambda_handler(event, context):
                   startZone, endZone)
                 insertRawWaypoints(cur, str(rideId), waypoints)
                 insertFlowWaypoints(cur, str(rideId), flow, route['track_points'])
+
+                # Notify ride ready.
+                rideData = {
+                    'userId': userId,
+                    'role': role,
+                    'flow': flow,
+                    'startTime': startZone[0]['timestamp'],
+                    'endTime': endZone[-1]['timestamp']
+                }
+                snsClient.publish(TopicArn=rideReadyTopic,
+                    Message=json.dumps({'id':rideId, 'rideData': rideData}),
+                    Subject=region + ' new ride ready')
 
         conn.commit()
         cur.close()
