@@ -17,9 +17,6 @@ def lambda_handler(event, context):
     now = datetime.now().astimezone()
 
     try:
-        if not 'rideIds' in event:
-            return malformedMessageReply()
-
         conn = psycopg2.connect(host=pgServer, database=pgDbName,
                                 user=pgUsername, password=pgPassword)
         cur = conn.cursor()
