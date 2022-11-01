@@ -76,7 +76,7 @@ def lambda_handler(event, context):
                     # Insert a ride where the organization is 'other', meaning
                     # that the user uploaded an unrelated trip. We insert this
                     # so that we don't fetch the trip data again.
-                    insertRide(cur, str(rideId), str(userId), None, None, None,
+                    insertRide(cur, str(rideId), str(userId), None, None, None, None, None,
                       'unknown', 'unknown', None, region, 'other', None, None)
                     continue
 
@@ -100,7 +100,14 @@ def lambda_handler(event, context):
                     wp['idx'] = idx
                     idx += 1
 
-                # TODO: Infer the pod.
+                pod = None
+                podName = None
+                if role == 'steward':
+                    # The pod of a steward ride is based on the user.
+                    pod = str(userId)
+                    podName = "Pod for " + user.get('displayName', pod)
+
+                # The pod is inferred later by Lambda infer-pod.
                 inferredPod = None
                 inferredPodName = None
 
@@ -111,7 +118,7 @@ def lambda_handler(event, context):
                       accuweatherLocationUrl, accuweatherConditionsUrl, accuweatherApiKey,
                       requests)
 
-                insertRide(cur, str(rideId), str(userId), role, flow, flowName,
+                insertRide(cur, str(rideId), str(userId), role, flow, flowName, pod, podName,
                   inferredPod, inferredPodName, weatherJson, region, organization,
                   startZone, endZone)
                 insertRawWaypoints(cur, str(rideId), waypoints)
@@ -226,7 +233,7 @@ def fetchTrip(tripId):
     else:
         raise ValueError('RideWithGPS API request for trip failed with code {}'.format(response.status_code))
 
-def insertRide(cur, rideId, userId, role, flow, flowName,
+def insertRide(cur, rideId, userId, role, flow, flowName, pod, podName,
                inferredPod, inferredPodName, weatherJson, region, organization, startZone, endZone):
     """
     Insert into the rides table. rideId and userId must be None or a str (not number).
@@ -234,11 +241,11 @@ def insertRide(cur, rideId, userId, role, flow, flowName,
     if startZone == None or endZone == None:
         # This is for inserting rides where organization is 'other'.
         sql = """
-              INSERT INTO {}("rideId", "userId", "role", "flow", "flowName",
+              INSERT INTO {}("rideId", "userId", "role", "flow", "flowName", pod, "podName",
                              "inferredPod", "inferredPodName", "weatherJson", region, organization)
-              VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+              VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
               """.format(CibicResources.Postgres.Rides)
-        cur.execute(sql, (rideId, userId, role, flow, flowName,
+        cur.execute(sql, (rideId, userId, role, flow, flowName, pod, podName,
                           inferredPod, inferredPodName, weatherJson, region, organization))
         return
 
@@ -246,9 +253,9 @@ def insertRide(cur, rideId, userId, role, flow, flowName,
     cLat1, cLon1, rad1 = obfuscateWaypoints(startZone)
     cLat2, cLon2, rad2 = obfuscateWaypoints(endZone)
     sql = """
-          INSERT INTO {}("rideId", "startTime", "endTime", "userId", "role", "flow", "flowName",
+          INSERT INTO {}("rideId", "startTime", "endTime", "userId", "role", "flow", "flowName", pod, "podName",
                          "inferredPod", "inferredPodName", "weatherJson", region, organization, "startZone", "endZone")
-          VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+          VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                   ST_Buffer(ST_GeomFromText('{}',4326)::geography,
                               {},'quad_segs=16')::geometry,
                   ST_Buffer(ST_GeomFromText('{}',4326)::geography,
@@ -258,7 +265,7 @@ def insertRide(cur, rideId, userId, role, flow, flowName,
                       wktPoint(cLat1, cLon1), rad1,
                       wktPoint(cLat2, cLon2), rad2)
     cur.execute(sql, (rideId, startZone[0]['timestamp'], endZone[-1]['timestamp'], userId, role, flow, flowName,
-                      inferredPod, inferredPodName, weatherJson, region, organization))
+                      pod, podName, inferredPod, inferredPodName, weatherJson, region, organization))
 
 def wktPoint(lat, lon):
     return 'POINT({} {})'.format(lon, lat)

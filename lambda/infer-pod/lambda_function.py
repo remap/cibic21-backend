@@ -84,7 +84,6 @@ SELECT "rideId", pod, "podName", "flowJoinPointsJson"
                     inferredPodName = None
                     break
 
-            # TODO: For Buenos Aires, is the pod name just the steward userId?
             if inferredPod != None:
                 # There is only one choice, so use it.
                 print("inferredPod " + str(inferredPod))
