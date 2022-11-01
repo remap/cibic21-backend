@@ -76,8 +76,8 @@ def lambda_handler(event, context):
                     # Insert a ride where the organization is 'other', meaning
                     # that the user uploaded an unrelated trip. We insert this
                     # so that we don't fetch the trip data again.
-                    insertRide(cur, str(rideId), str(userId), None, None, None, None,
-                      None, None, region, 'other', None, None)
+                    insertRide(cur, str(rideId), str(userId), None, None, None,
+                      'unknown', 'unknown', None, region, 'other', None, None)
                     continue
 
                 flow = str(route['id'])
