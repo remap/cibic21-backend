@@ -51,8 +51,8 @@ SELECT "rideId", "startTime", "endTime", flow, role, pod, "podName", region, org
                     updateInferredPod(cur, rideId, 'unknown', 'unknown')
                 continue
 
-            if (now - endTime) < timedelta(days=1):
-                # The ride ended within the past day. Give more time for all
+            if (now - endTime) < timedelta(hours=12):
+                # The ride ended within the past half day. Give more time for all
                 # possible matching steward rides to be uploaded.
                 continue
 
