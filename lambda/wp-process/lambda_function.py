@@ -112,13 +112,10 @@ def lambda_handler(event, context):
                       accuweatherLocationUrl, accuweatherConditionsUrl, accuweatherApiKey,
                       requests)
 
-                # TODO: Actually infer the pod.
-                inferredPod = pod
-                inferredPodName = podName
-
+                # The pod is inferred later by Lambda infer-pod.
                 insertRide(cur, rideId, requestId, userId, role, flow, flowName, flowIsToWork, commute,
                            flowJoinPointsJson, flowLeavePointsJson, pod, podName, podMemberJson,
-                           inferredPod, inferredPodName, weatherJson, region, organization, startZone, endZone)
+                           weatherJson, region, organization, startZone, endZone)
                 # insert raw waypoints
                 insertRawWaypoints(cur, rideId, requestId, waypoints)
                 # Insert the flow waypoints which may change over time for the same flow ID.
@@ -205,15 +202,15 @@ def getRouteStats(waypoints):
 
 def insertRide(cur, rideId, requestId, userId, role, flow, flowName, flowIsToWork, commute,
                flowJoinPointsJson, flowLeavePointsJson, pod, podName, podMemberJson,
-               inferredPod, inferredPodName, weatherJson, region, organization, startZone, endZone):
+               weatherJson, region, organization, startZone, endZone):
     # generate start / end geometry
     cLat1, cLon1, rad1 = obfuscateWaypoints(startZone)
     cLat2, cLon2, rad2 = obfuscateWaypoints(endZone)
     sqlInsertRide = """
                     INSERT INTO {}("rideId", "requestId", "startTime", "endTime", "userId", "role", "flow", "flowName", "flowIsToWork", "commute",
                                    "flowJoinPointsJson", "flowLeavePointsJson", "pod", "podName", "podMemberJson",
-                                   "inferredPod", "inferredPodName", "weatherJson", region, organization, "startZone", "endZone")
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                                   "weatherJson", region, organization, "startZone", "endZone")
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                             ST_Buffer(ST_GeomFromText('{}',4326)::geography,
                                         {},'quad_segs=16')::geometry,
                             ST_Buffer(ST_GeomFromText('{}',4326)::geography,
@@ -223,7 +220,7 @@ def insertRide(cur, rideId, requestId, userId, role, flow, flowName, flowIsToWor
                                 wktPoint(cLat1, cLon1), rad1,
                                 wktPoint(cLat2, cLon2), rad2)
     cur.execute(sqlInsertRide, (rideId, requestId, startZone[0]['timestamp'], endZone[-1]['timestamp'], userId, role, flow, flowName, flowIsToWork, commute,
-                                flowJoinPointsJson, flowLeavePointsJson, pod, podName, podMemberJson, inferredPod, inferredPodName, weatherJson, region, organization))
+                                flowJoinPointsJson, flowLeavePointsJson, pod, podName, podMemberJson, weatherJson, region, organization))
 
 def wktPoint(lat, lon):
     return 'POINT({} {})'.format(lon, lat)
