@@ -51,9 +51,9 @@ def lambda_handler(event, context):
         existingRides = queryRideIds(cur, region)
 
         for userId, user in users.items():
-            # For now, all users have role 'rider'.
             role = user.get('role')
 
+            print("Fetching rides for userId " + userId)
             trips = fetchUserTrips(userId)
             for rideId, tripMetaInfo in trips.items():
                 # Ride IDs in the table are strings but RideWith GPS IDs are numbers.
