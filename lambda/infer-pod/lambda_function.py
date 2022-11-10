@@ -62,8 +62,7 @@ SELECT "rideId", "startTime", "endTime", flow, role, pod, "podName", region, org
 SELECT "rideId", pod, "podName", "flowJoinPointsJson"
   FROM {0}
   WHERE role = 'steward' AND flow = '{1}' AND region = '{2}' AND organization = '{3}' AND
-        "endTime" > '{4}' AND "startTime" < '{5}' AND pod IS NOT NULL AND
-        "flowJoinPointsJson" IS NOT NULL;
+        "endTime" > '{4}' AND "startTime" < '{5}' AND pod IS NOT NULL;
             """.format(CibicResources.Postgres.Rides, flow, region, organization,
                        startTime, endTime)
             cur.execute(sql)
@@ -86,7 +85,6 @@ SELECT "rideId", pod, "podName", "flowJoinPointsJson"
 
             if inferredPod != None:
                 # There is only one choice, so use it.
-                print("inferredPod " + str(inferredPod))
                 updateInferredPod(cur, rideId, inferredPod, inferredPodName)
                 continue
 
@@ -96,6 +94,8 @@ SELECT "rideId", pod, "podName", "flowJoinPointsJson"
                 stewardRideId = stewardRide[0]
                 stewardPod = stewardRide[1]
                 stewardPodName = stewardRide[2]
+                if stewardRide[3] == None:
+                    continue
                 joinPoints = stewardRide[3]
                 if len(joinPoints) == 0:
                     continue
@@ -133,7 +133,6 @@ SELECT ST_Distance(ST_SetSRID(coordinate::geometry, 4326)::geography, ST_SetSRID
                     inferredPod = stewardPod
                     inferredPodName = stewardPodName
 
-            print("inferredPod " + str(inferredPod))
             if inferredPod != None:
                 updateInferredPod(cur, rideId, inferredPod, inferredPodName)
             else:
@@ -152,6 +151,7 @@ def updateInferredPod(cur, rideId, inferredPod, inferredPodName):
     """
     Update the inferred pod for the rideId.
     """
+    print('inferredPod: ' + inferredPod)
     sql = """
 UPDATE {0} SET "inferredPod" = '{1}', "inferredPodName" = '{2}'
   WHERE "rideId" = '{3}';
