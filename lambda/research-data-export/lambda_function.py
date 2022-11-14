@@ -15,9 +15,11 @@ pgServer = os.environ['ENV_VAR_POSTGRES_SERVER']
 pgDbName = os.environ['ENV_VAR_POSTGRES_DB']
 pgUsername = os.environ['ENV_VAR_POSTGRES_USER']
 pgPassword = os.environ['ENV_VAR_POSTGRES_PASSWORD']
+researchDataReadyTopic = os.environ['ENV_SNS_RESEARCH_DATA_READY']
 
 dynamoDbResource = boto3.resource('dynamodb')
 sesClient = boto3.client('ses')
+snsClient = boto3.client('sns')
 
 def lambda_handler(event, context):
     fromEmail = os.environ['ENV_VAR_FROM_EMAIL']
@@ -190,12 +192,12 @@ SELECT pod, "podName", flow, "flowName", "rideId", region, organization
                 #frame2.to_excel(writer, sheet_name='Monthly Survey Report', index=False)
             excel = output.getvalue()
         print('Excel output file size ' + str(len(excel)))
-        ## TODO: When done testing, remove Lambda permissions to S3.
-        #debug_s3.put_object(Bucket=CibicResources.S3Bucket.JournalingImages,
-        #                    Key='CiBiC_Data_Report.xlsx', Body=excel)
         emailAttachment(fromEmail, toEmail,
           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
           'CiBiC_Data_Report.xlsx', excel)
+        snsClient.publish(TopicArn=researchDataReadyTopic,
+          Message='CiBiC project: A new research data Excel file is ready in UCLA box.',
+          Subject='CiBiC: New research data Excel ready')
 
         return lambdaReply(200, {})
     except:
