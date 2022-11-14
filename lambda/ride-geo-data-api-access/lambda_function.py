@@ -32,10 +32,14 @@ def lambda_handler(event, context):
                 if not startTime or not endTime:
                     return lambdaReply(420, 'bad format for startTime/endTime parameters')
 
+                region = event['queryStringParameters'].get('region')
+                organization = event['queryStringParameters'].get('organization')
+                requireFlow = ('requireFlow' in event['queryStringParameters'])
+
                 if 'idsOnly' in event['queryStringParameters']:
-                    rides = queryRidesSimple(startTime, endTime)
+                    rides = queryRidesSimple(startTime, endTime, region, organization, requireFlow)
                 else:
-                    rides = queryRidesRich(startTime, endTime)
+                    rides = queryRidesRich(startTime, endTime, region, organization, requireFlow)
                 print('fetched {} rides'.format(len(rides)))
                 return lambdaReply(200, rides)
             else:
@@ -158,12 +162,28 @@ def parseDatetime(ss):
     except:
         return None
 
-def queryRidesSimple(startTime, endTime):
+def queryRidesSimple(startTime, endTime, region, organization, requireFlow):
+    """
+    Get only the rideId where startTime is between startTime and endTime.
+    If region is not None, restrict to the region.
+    If organization is not None, restrict to the organization.
+    if requireFlow is True, restrict to rides where the flow is not NULL.
+    """
+    extraWhere = ''
+    if region != None:
+        extraWhere += " AND ride.region = '{}'".format(region)
+    if organization != None:
+        extraWhere += " AND ride.organization = '{}'".format(organization)
+    if requireFlow:
+        extraWhere += " AND ride.flow IS NOT NULL"
+
     sql = """
             SELECT ride."rideId"
             FROM {0} as ride
-            WHERE ride."startTime" BETWEEN '{1}' AND '{2}'
-          """.format(CibicResources.Postgres.Rides, startTime, endTime)
+            WHERE ride."startTime" BETWEEN '{1}' AND '{2}' {3}
+          """.format(CibicResources.Postgres.Rides,
+                     startTime.astimezone().strftime("%Y-%m-%d %H:%M:%S%z"),
+                     endTime.astimezone().strftime("%Y-%m-%d %H:%M:%S%z"), extraWhere)
     conn = psycopg2.connect(host=pgServer, database=pgDbName,
                                         user=pgUsername, password=pgPassword)
     cur = conn.cursor()
@@ -178,7 +198,21 @@ def queryRidesSimple(startTime, endTime):
     return rides
 
 
-def queryRidesRich(startTime, endTime):
+def queryRidesRich(startTime, endTime, region, organization, requireFlow):
+    """
+    Get the full GeoJSON for the rides where startTime is between startTime and endTime.
+    If region is not None, restrict to the region.
+    If organization is not None, restrict to the organization.
+    if requireFlow is True, restrict to rides where the flow is not NULL.
+    """
+    extraWhere = ''
+    if region != None:
+        extraWhere += " AND ride.region = '{}'".format(region)
+    if organization != None:
+        extraWhere += " AND ride.organization = '{}'".format(organization)
+    if requireFlow:
+        extraWhere += " AND ride.flow IS NOT NULL"
+
     sql = """
             SET TIME ZONE 'America/Los_Angeles';
             SELECT json_build_object(
@@ -262,13 +296,13 @@ def queryRidesRich(startTime, endTime):
                                     FROM {2}
                                     GROUP BY "rideId") AS flow_wp
                          ON ride."rideId" = flow_wp."rideId"
-                         WHERE ride."startTime" BETWEEN '{3}' AND '{4}'
+                         WHERE ride."startTime" BETWEEN '{3}' AND '{4}' {5}
 						             ORDER BY ride."startTime" DESC
                        ) AS geo
                  ) AS feature_collection;
           """.format(CibicResources.Postgres.Rides, CibicResources.Postgres.WaypointsRaw, CibicResources.Postgres.RideFlowWaypoints,
                     startTime.astimezone().strftime("%Y-%m-%d %H:%M:%S%z"),
-                    endTime.astimezone().strftime("%Y-%m-%d %H:%M:%S%z"))
+                    endTime.astimezone().strftime("%Y-%m-%d %H:%M:%S%z"), extraWhere)
     conn = psycopg2.connect(host=pgServer, database=pgDbName,
                                             user=pgUsername, password=pgPassword)
     cur = conn.cursor()
