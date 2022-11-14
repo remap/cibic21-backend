@@ -71,9 +71,12 @@ def lambda_handler(event, context):
                                     user=pgUsername, password=pgPassword)
             cur = conn.cursor()
 
-            # This has all current enrollments, and maybe some were removed, so
-            # first delete all records.
-            cur.execute("DELETE FROM {}".format(CibicResources.Postgres.UserEnrollments))
+            # Delete "no-enrollment" users. Then set the remaining users to deleted.
+            # Below, we will replace with the current enrollments (where deleted is false).
+            cur.execute("""DELETE FROM {} WHERE "userId" LIKE '(no-enrollment-%)'"""
+                        .format(CibicResources.Postgres.UserEnrollments))
+            cur.execute("UPDATE {} SET deleted = true"
+                        .format(CibicResources.Postgres.UserEnrollments))
 
             # The user enrollments coming from ENV_VAR_ENROLLMENTS_EP_URL are for Los Angeles.
             region = CibicResources.LosAngelesRegion
@@ -140,6 +143,8 @@ def lambda_handler(event, context):
                             # Save for checking later.
                             consentedUser['inserted'] = True
 
+                # Delete and insert to replace. (Less complicated than "upsert".)
+                deleteEnrollment(cur, userId)
                 insertEnrollment(cur, region, organization, userId, role, active, displayName, email,
                   outwardFlowId, outwardFlowName,
                   returnFlowId, returnFlowName, outwardPodId, outwardPodName,
@@ -185,6 +190,8 @@ def lambda_handler(event, context):
                 if email != None:
                     email = email.strip()
 
+                # Delete and insert to replace. (Less complicated than "upsert".)
+                deleteEnrollment(cur, userId)
                 insertEnrollment(cur, region, organization, userId, role, active, displayName, email,
                   None, None, None, None, None, None, None, None, None, None, None)
 
@@ -334,6 +341,13 @@ def getCanonicalUserName(name):
     Get the canonical name by removing accents, leading/trailing whitespace and making lower case.
     """
     return unidecode.unidecode(name).lower().strip()
+
+def deleteEnrollment(cur, userId):
+    """
+    Delete enrollments with the given userId.
+    """
+    cur.execute("""DELETE FROM {0} WHERE "userId" = '{1}'"""
+            .format(CibicResources.Postgres.UserEnrollments, userId))
 
 def insertEnrollment(cur, region, organization, userId, role, active, displayName, email,
       outwardFlowId, outwardFlowName, returnFlowId, returnFlowName, outwardPodId, outwardPodName,
