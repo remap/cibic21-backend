@@ -82,7 +82,7 @@ def lambda_handler(event, context):
 
             # Fetch the latest ride before timestamp for the userId and role.
             sql = """
-SELECT pod, "podName", flow, "flowName", "rideId"
+SELECT pod, "podName", flow, "flowName", "rideId", region, organization
   FROM {0}
   WHERE "userId" = '{1}' AND role = '{2}' AND "startTime" <= '{3}'
   ORDER BY "startTime" DESC
@@ -97,6 +97,8 @@ SELECT pod, "podName", flow, "flowName", "rideId"
             flow = None
             flowName = None
             rideId = None
+            region = None
+            organization = None
 
             # There should only be one result, so use fetchone.
             ride = cur.fetchone()
@@ -106,13 +108,15 @@ SELECT pod, "podName", flow, "flowName", "rideId"
                 flow = ride[2]
                 flowName = ride[3]
                 rideId = ride[4]
+                region = ride[5]
+                organization = ride[6]
 
             conn.commit()
             cur.close()
 
             demographics = getDemographics(surveyItems, userId, role)
 
-            row = [userId, role, timestamp, pod, podName, flow, flowName, rideId,
+            row = [userId, role, region, organization, timestamp, pod, podName, flow, flowName, rideId,
                    demographics.get('gender'), demographics.get('race'),
                    demographics.get('age'), demographics.get('income')]
                    
@@ -175,7 +179,7 @@ SELECT pod, "podName", flow, "flowName", "rideId"
 
         frame1 = pd.DataFrame(
             rows,
-            columns=(['User ID', 'Role', 'Date (UTC)', 'Pod ID', 'Pod Name',
+            columns=(['User ID', 'Role', 'Region', 'Organization', 'Date (UTC)', 'Pod ID', 'Pod Name',
                       'Flow ID', 'Flow Name', 'Ride ID', 'Gender', 'Race',
                       'Age', 'Household Income'] + headers))
         #frame2 = pd.DataFrame([[1, 2], [3, 4]], columns=['col 1', 'col 2'])
