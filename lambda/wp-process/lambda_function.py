@@ -106,7 +106,7 @@ def lambda_handler(event, context):
                         podMemberJson = json.dumps(podMember)
 
                 weatherJson = None
-                if role == 'rider' or role == 'steward':
+                if role == 'steward':
                     # For a steward include the weather (at the start waypoint).
                     weatherJson = fetchWeatherJson(startZone[0]['latitude'], startZone[0]['longitude'],
                       accuweatherLocationUrl, accuweatherConditionsUrl, accuweatherApiKey,
