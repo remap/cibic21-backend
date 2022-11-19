@@ -380,7 +380,6 @@ INSERT INTO {} (region, organization, "userId", role, active, "displayName", ema
       homeInfo.get('addressText'), homeInfo.get('fullAddress'), homeInfo.get('zipCode'), homeInfo.get('coordinate'), homeInfo.get('geofenceRadius'),
       workInfo.get('addressText'), workInfo.get('fullAddress'), workInfo.get('zipCode'), workInfo.get('coordinate'), workInfo.get('geofenceRadius'))]
     extras.execute_values(cur, sql, values)
-    print('sql query execute result: ' + str(cur.statusmessage))
 
 def makeSqlPoint(lat, lon):
     return str(lon) + ', ' + str(lat)
