@@ -17,6 +17,7 @@ import requests
 snsClient = boto3.client('sns')
 
 obfuscateRadius = float(os.environ['ENV_VAR_OBFUSCATE_RADIUS']) if 'ENV_VAR_OBFUSCATE_RADIUS' in os.environ else 100
+obfuscateSalt = os.environ['ENV_VAR_OBFUSCATE_SALT']
 pgServer = os.environ['ENV_VAR_POSTGRES_SERVER']
 pgDbName = os.environ['ENV_VAR_POSTGRES_DB']
 pgUsername = os.environ['ENV_VAR_POSTGRES_USER']
@@ -250,8 +251,8 @@ def insertRide(cur, rideId, userId, role, flow, flowName, pod, podName,
         return
 
     # generate start / end geometry
-    cLat1, cLon1, rad1 = obfuscateWaypoints(startZone)
-    cLat2, cLon2, rad2 = obfuscateWaypoints(endZone)
+    cLat1, cLon1, rad1 = obfuscateWaypoints(startZone, userId, obfuscateSalt)
+    cLat2, cLon2, rad2 = obfuscateWaypoints(endZone, userId, obfuscateSalt)
     sql = """
           INSERT INTO {}("rideId", "startTime", "endTime", "userId", "role", "flow", "flowName", pod, "podName",
                          "inferredPod", "inferredPodName", "weatherJson", region, organization, "startZone", "endZone")

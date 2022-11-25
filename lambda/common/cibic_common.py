@@ -1,13 +1,8 @@
 import boto3
-import copy
+import hashlib
 import json
-from decimal import Decimal
 import sys, traceback, os
-import uuid
-from datetime import datetime
 import urllib.request, mimetypes
-import statistics
-import time
 import math
 
 ################################################################################
@@ -158,9 +153,11 @@ def splitWaypoints(radius, waypoints):
         return (startZone, endZone, mainZone)
     return ([],[],[])
 
-def obfuscateWaypoints(waypoints):
+def obfuscateWaypoints(waypoints, id, obfuscateSalt):
     """
     Each waypoint has float 'latitude' and 'longitude'.
+    Use strings id and obfuscateSalt to derive an offset for the center which is
+    always the same for the id (and obfuscateSalt).
     Return (centerLat, centerLon, minRadius) .
     """
     centerLat = 0
@@ -179,9 +176,21 @@ def obfuscateWaypoints(waypoints):
         d = getGreatCircleDistance(wp['latitude'], wp['longitude'], centerLat, centerLon)
         if minRadius < d:
             minRadius = d
-    print('zone center at ({},{}) with radius {}'
-            .format(centerLat, centerLon, minRadius))
-    return (centerLat, centerLon, minRadius)
+
+    # Compute an offset for center lat and lon in the range -50 to 50 (meters).
+    sha256 = hashlib.sha256()
+    sha256.update(str.encode(id))
+    sha256.update(str.encode(obfuscateSalt))
+    digest = sha256.digest()
+    # Use a byte of the digest as a pseudo-random value from 0 to 255.
+    randMetersY = float(digest[0]) / 255.0 * 100.0 - 50.0
+    randMetersX = float(digest[1]) / 255.0 * 100.0 - 50.0
+    # Convert meters at the Earth radius to (approximate) degrees.
+    R = 6378.137 * 1000.0 # Earth radius in meters.
+    offsetLat = math.degrees(math.atan2(randMetersY, R))
+    offsetLon = math.degrees(math.atan2(randMetersX, R))
+
+    return (centerLat + offsetLat, centerLon + offsetLon, minRadius)
 
 # https://en.wikipedia.org/wiki/Haversine_formula
 def getGreatCircleDistance(lat1, lon1, lat2, lon2):
