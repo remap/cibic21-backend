@@ -1,3 +1,9 @@
+# This Lambda is for the ride GeoJSON access API. For /ride/get, query parameters
+# is just 'rideId'. For /ride/query, query parameters are 'startTime' and 'endTime'
+# (required) plus 'region', 'organization' and 'requireFlow' (optional).
+# Get the matching rides from the Rides Postgres table and combine with
+# WaypointsRaw and RideFlowWaypoints. Retur the result in GeoJSON.
+
 from common.cibic_common import *
 import os
 import psycopg2
