@@ -31,6 +31,7 @@ def lambda_handler(event, context):
         stage = event['requestContext']['stage']
         requestBody = json.loads(event['body'])
         print('body data ' + str(requestBody))
+        print('requestId ' + requestId)
 
         if 'userId' in requestBody:
             userId = requestBody['userId']
