@@ -69,11 +69,18 @@ SELECT json_build_object(
          'returnFlowName', "returnFlowName",
          'totalRides', (SELECT COUNT(*) FROM {1} AS rides
                         WHERE rides."userId" = users."userId" AND
-                        rides.flow IS NOT NULL {3})
+                        rides.flow IS NOT NULL {3}),
+         'lastFlowId', last_flow_info[1],
+         'lastFlowName', last_flow_info[2]
        )
 FROM (SELECT "userId", role, "displayName", email,
-      "outwardFlowId", "outwardFlowName", "returnFlowId", "returnFlowName"
-      FROM {0}
+      "outwardFlowId", "outwardFlowName", "returnFlowId", "returnFlowName",
+      (SELECT array[flow, "flowName"]
+	     FROM {1} AS rides
+	     WHERE rides."userId" = u."userId" AND rides.flow IS NOT NULL {3}
+	     ORDER BY rides."startTime" DESC
+	     LIMIT 1) AS last_flow_info
+      FROM {0} AS u
       WHERE active = True AND deleted = False {2}
       ORDER BY "userId") AS users;
           """.format(CibicResources.Postgres.UserEnrollments,
