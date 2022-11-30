@@ -50,7 +50,11 @@ def lambda_handler(event, context):
         if not isRideDataValid(requestBody):
             requestReply = malformedMessageReply();
         else:
-            waypointsData = requestBody['trajectoryData']['waypoints']
+            if 'waypoints' in requestBody['trajectoryData']:
+                waypointsData = requestBody['trajectoryData']['waypoints']
+            else:
+                # Try using the new syntax.
+                waypointsData = requestBody['trajectoryData']['map_matched_waypoints']
 
             remapRideData = makeRideData(requestBody)
 
