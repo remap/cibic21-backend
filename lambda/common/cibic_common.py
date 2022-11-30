@@ -98,10 +98,16 @@ def fetchWeatherJson(lat, lon, accuweatherLocationUrl, accuweatherConditionsUrl,
 # LAMBDA HELPERS
 ################################################################################
 def lambdaReply(code, message):
-    print('lambda reply {}: {}'.format(code, message))
+    messageJson = json.dumps(message)
+    maxPrintLen = 200
+    if len(messageJson) <= maxPrintLen:
+        print('lambda reply {} {}'.format(code, messageJson))
+    else:
+        print('lambda reply {} {} ...'.format(code, messageJson[0, maxPrintLen]))
+
     return {
         'statusCode': code,
-        'body': json.dumps(message)
+        'body': messageJson
     }
 
 def malformedMessageReply():
