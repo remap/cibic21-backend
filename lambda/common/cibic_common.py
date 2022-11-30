@@ -103,7 +103,7 @@ def lambdaReply(code, message):
     if len(messageJson) <= maxPrintLen:
         print('lambda reply {} {}'.format(code, messageJson))
     else:
-        print('lambda reply {} {} ...'.format(code, messageJson[0, maxPrintLen]))
+        print('lambda reply {} {} ...'.format(code, messageJson[0:maxPrintLen]))
 
     return {
         'statusCode': code,
