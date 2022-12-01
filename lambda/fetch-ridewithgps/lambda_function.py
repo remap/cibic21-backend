@@ -173,7 +173,7 @@ def queryActiveUsers(cur, region, organization):
     sql = """
       SELECT "userId", role, "displayName", email
       FROM {0}
-      WHERE active = TRUE AND region = '{1}' AND organization = '{2}'
+      WHERE active = TRUE AND deleted = FALSE AND region = '{1}' AND organization = '{2}'
     """.format(CibicResources.Postgres.UserEnrollments, region, organization)
     cur.execute(sql)
     result = {}
