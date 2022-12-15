@@ -263,10 +263,10 @@ def getDemographics(surveyItems, userId, role):
                     if answerId in genderAnswers:
                         result['gender'] = genderAnswers[answerId]
                     else:
-                        print('caught exception: Unrecognized gender answer ID ' + answerId +
+                        print('caught exception: Unrecognized gender answer ID ' + str(answerId) +
                           ' in demographic survey for userId ' + userId + ', role ' + role)
             else:
-                print('caught exception: Gender question ID ' + genderQuestionId +
+                print('caught exception: Gender question ID ' + str(genderQuestionId) +
                   ' not in demographic survey for userId ' + userId + ', role ' + role)
 
             if raceQuestionId in answers:
@@ -277,10 +277,10 @@ def getDemographics(surveyItems, userId, role):
                     else:
                         result['race'] = raceAnswers[answerId]
                 else:
-                    print('caught exception: Unrecognized race answer ID ' + answerId +
+                    print('caught exception: Unrecognized race answer ID ' + str(answerId) +
                       ' in demographic survey for userId ' + userId + ', role ' + role)
             else:
-                print('caught exception: Race question ID ' + raceQuestionId +
+                print('caught exception: Race question ID ' + str(raceQuestionId) +
                   ' not in demographic survey for userId ' + userId + ', role ' + role)
 
             if ageQuestionId in answers:
@@ -290,7 +290,7 @@ def getDemographics(surveyItems, userId, role):
                 except ValueError:
                     result['age'] = ageText
             else:
-                print('caught exception: Age question ID ' + ageQuestionId +
+                print('caught exception: Age question ID ' + str(ageQuestionId) +
                   ' not in demographic survey for userId ' + userId + ', role ' + role)
 
             if incomeQuestionId in answers:
@@ -298,10 +298,10 @@ def getDemographics(surveyItems, userId, role):
                 if answerId in incomeAnswers:
                     result['income'] = incomeAnswers[answerId]
                 else:
-                    print('caught exception: Unrecognized income answer ID ' + answerId +
+                    print('caught exception: Unrecognized income answer ID ' + str(answerId) +
                       ' in demographic survey for userId ' + userId + ', role ' + role)
             else:
-                print('caught exception: Income question ID ' + genderQuestionId +
+                print('caught exception: Income question ID ' + str(genderQuestionId) +
                   ' not in demographic survey for userId ' + userId + ', role ' + role)
 
             break
