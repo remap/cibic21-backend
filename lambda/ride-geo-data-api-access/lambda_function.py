@@ -229,6 +229,7 @@ def queryRidesRich(startTime, endTime, region, organization, requireFlow):
                                      'startTime', start_time,
                                      'endTime', end_time,
                                      'userId', user_id,
+                                     'displayName', display_name, 
                                      'role', role,
                                      'flow', flow,
                                      'flowName', flow_name,
@@ -265,7 +266,7 @@ def queryRidesRich(startTime, endTime, region, organization, requireFlow):
                                json_build_object(
                                 'type', 'Feature',
                                 'geometry', ST_AsGeoJSON(flow_line)::json) AS flow_path,
-                               rid, start_time, end_time, user_id, role, flow, flow_name, flow_is_to_work, commute,
+                               rid, start_time, end_time, user_id, display_name, role, flow, flow_name, flow_is_to_work, commute,
                                flow_join_points_json, flow_leave_points_json, pod, pod_name, pod_member_json,
                                inferred_pod, inferred_pod_name, weather_json, region, organization
                   FROM (SELECT ride."startZone" AS start_zone,
@@ -276,6 +277,7 @@ def queryRidesRich(startTime, endTime, region, organization, requireFlow):
                                ride."startTime" AS start_time,
                                ride."endTime" AS end_time,
                                ride."userId" AS user_id,
+                               users."displayName" as display_name, 
                                ride."role" AS role,
                                ride."flow" AS flow,
                                ride."flowName" AS flow_name,
@@ -302,13 +304,15 @@ def queryRidesRich(startTime, endTime, region, organization, requireFlow):
                                     FROM {2}
                                     GROUP BY "rideId") AS flow_wp
                          ON ride."rideId" = flow_wp."rideId"
+                         LEFT JOIN (SELECT "userId", "displayName" from {6}) AS users
+                         ON ride."userId" = users."userId"
                          WHERE ride."startTime" BETWEEN '{3}' AND '{4}' {5}
 						             ORDER BY ride."startTime" DESC
                        ) AS geo
                  ) AS feature_collection;
           """.format(CibicResources.Postgres.Rides, CibicResources.Postgres.WaypointsRaw, CibicResources.Postgres.RideFlowWaypoints,
                     startTime.astimezone().strftime("%Y-%m-%d %H:%M:%S%z"),
-                    endTime.astimezone().strftime("%Y-%m-%d %H:%M:%S%z"), extraWhere)
+                    endTime.astimezone().strftime("%Y-%m-%d %H:%M:%S%z"), extraWhere, CibicResources.Postgres.UserEnrollments)
     conn = psycopg2.connect(host=pgServer, database=pgDbName,
                                             user=pgUsername, password=pgPassword)
     cur = conn.cursor()
