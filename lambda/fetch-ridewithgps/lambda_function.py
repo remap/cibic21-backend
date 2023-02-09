@@ -89,9 +89,16 @@ def lambda_handler(event, context):
 
                 # Get the waypoints in the form needed by splitWaypoints, etc.
                 waypoints = []
+                previousTimestamp = ""
                 for point in trip['trip']['track_points']:
+                    timestamp = datetime.fromtimestamp(point['t']).isoformat() + '+00:00'
+                    if timestamp == previousTimestamp:
+                        # Skip duplicates.
+                        continue
+                    else:
+                        previousTimestamp = timestamp
                     waypoints.append({ 'longitude': point['x'], 'latitude': point['y'],
-                      'timestamp': datetime.fromtimestamp(point['t']).isoformat() + '+00:00' })
+                      'timestamp': timestamp })
 
                 startZone, endZone, _ = splitWaypoints(obfuscateRadius, waypoints)
 
