@@ -77,7 +77,7 @@ SELECT "rideId", pod, "podName", "flowJoinPointsJson"
             inferredPodName = stewardRides[0][2]
             for i in range(1, len(stewardRides)):
                 joinPoints = stewardRides[i][3]
-                if stewardRides[i][1] != inferredPod and len(joinPoints) > 0:
+                if stewardRides[i][1] != inferredPod and joinPoints != None and len(joinPoints) > 0:
                     # Found a steward ride with a different pod, which has join points to examine.
                     inferredPod = None
                     inferredPodName = None
@@ -97,7 +97,7 @@ SELECT "rideId", pod, "podName", "flowJoinPointsJson"
                 if stewardRide[3] == None:
                     continue
                 joinPoints = stewardRide[3]
-                if len(joinPoints) == 0:
+                if joinPoints == None or len(joinPoints) == 0:
                     continue
 
                 finalJoinPoint = joinPoints[-1]
