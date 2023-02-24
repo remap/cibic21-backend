@@ -96,9 +96,16 @@ def lambda_handler(event, context):
                         # Skip duplicates.
                         continue
                     else:
-                        previousTimestamp = timestamp
-                    waypoints.append({ 'longitude': point['x'], 'latitude': point['y'],
-                      'timestamp': timestamp })
+                        if 'x' in point and 'y' in point:
+                            previousTimestamp = timestamp
+                            waypoints.append({ 'longitude': point['x'], 'latitude': point['y'],
+                              'timestamp': timestamp })
+                        else:
+                            print('caught exception: No x or y in point' + str(point))
+
+                if len(waypoints) < 2:
+                    print('caught exception: Not enough valid waypoints, length ' + str(len(waypoints)))
+                    continue
 
                 startZone, endZone, _ = splitWaypoints(obfuscateRadius, waypoints)
 
