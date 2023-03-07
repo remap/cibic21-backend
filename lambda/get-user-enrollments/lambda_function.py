@@ -274,22 +274,28 @@ def getConsentedUsers():
     If problem, print an error and return None.
     """
     try:
-        # TODO: Check 'total' and fetch multiple pages.
-        # TODO: Don't use /bulk for the initial fetch.
-        response = requests.get(
-            'https://api.surveymonkey.net/v3/surveys/' + consentSurveyId +
-            '/responses/bulk?per_page=100',
-            headers = {'Authorization': 'bearer ' + bearerToken})
-        if response.status_code/100 != 2:
-            raise ValueError('SurveyMonkey API request failed with code {}'.format(response.status_code))
+        # TODO: This could eventually fetch many surveys and time out. Should limit the query.
+        responses = []
+        url = ('https://api.surveymonkey.net/v3/surveys/' + consentSurveyId +
+          '/responses/bulk?per_page=100')
+        while True:
+            reply = requests.get(url, headers = {'Authorization': 'bearer ' + bearerToken})
+            if reply.status_code/100 != 2:
+                raise ValueError('SurveyMonkey API request failed with code {}'.format(reply.status_code))
 
-        surveyBody = response.json()
+            surveyBody = reply.json()
+            responses = responses + surveyBody['data']
+
+            if not 'next' in surveyBody['links']:
+                break
+            url = surveyBody['links']['next']
+
         result = {}
         gotConsentSurveyNameRowId = False
         gotConsentSurveyEmailRowId = False
         gotConsentSurveyPhoneRowId = False
 
-        for response in surveyBody['data']:
+        for response in responses:
             if not response.get('response_status') == 'completed':
                 continue
             time = datetime.fromisoformat(response['date_modified'])
