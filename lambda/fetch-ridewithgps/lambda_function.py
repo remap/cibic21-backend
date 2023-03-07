@@ -104,7 +104,12 @@ def lambda_handler(event, context):
                             print('caught exception: No x or y in point' + str(point))
 
                 if len(waypoints) < 2:
-                    print('caught exception: Not enough valid waypoints, length ' + str(len(waypoints)))
+                    print('caught exception: Not enough valid waypoints, length ' + str(len(waypoints)) +
+                      '. In the future, ignoring ride ' + str(rideId))
+                    # Insert a ride where the organization is 'other',
+                    # so that we don't fetch the trip data again.
+                    insertRide(cur, str(rideId), str(userId), None, None, None, None, None,
+                      'unknown', 'unknown', None, region, 'other', None, None)
                     continue
 
                 startZone, endZone, _ = splitWaypoints(obfuscateRadius, waypoints)
