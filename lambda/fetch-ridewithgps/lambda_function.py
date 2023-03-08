@@ -55,7 +55,10 @@ def lambda_handler(event, context):
             role = user.get('role')
 
             print("Fetching rides for userId " + userId)
-            trips = fetchUserTrips(userId)
+            try:
+                trips = fetchUserTrips(userId)
+            except:
+                reportError()
             for rideId, tripMetaInfo in trips.items():
                 # Ride IDs in the table are strings but RideWith GPS IDs are numbers.
                 if str(rideId) in existingRides:
