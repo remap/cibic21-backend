@@ -25,7 +25,7 @@ def lambda_handler(event, context):
         logs.put_metric_filter(
             logGroupName=logGroupName,
             filterName='timeout-or-exception',
-            filterPattern='?"Task timed out" ?"caught exception"',
+            filterPattern='?"Task timed out" ?"caught exception" ?"[ERROR]"',
             metricTransformations=[
                 {
                     'metricName': metricName,
