@@ -209,5 +209,6 @@ def getGreatCircleDistance(lat1, lon1, lat2, lon2):
     lon1 = math.radians(lon1)
     lon2 = math.radians(lon2)
     dLon = abs(lon1-lon2)
-    dA = math.acos(math.sin(lat1)*math.sin(lat2) + math.cos(lat1)*math.cos(lat2)*math.cos(dLon))
+    # dA = math.acos(math.sin(lat1)*math.sin(lat2) + math.cos(lat1)*math.cos(lat2)*math.cos(dLon))
+    dA = math.acos(max(-1.0,min(1.0,math.sin(lat1)*math.sin(lat2) + math.cos(lat1)*math.cos(lat2)*math.cos(dLon))))
     return dA * R * 1000 # convert to meters
